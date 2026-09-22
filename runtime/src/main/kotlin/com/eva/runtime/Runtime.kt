@@ -1,10 +1,12 @@
 package com.eva.runtime
 
 enum class HostPlatform {
+    UNKNOW,
     MACOS,
     WINDOWS,
     LINUX,
-    OTHER,
+    Android,
+    iOS
 }
 
 data class RuntimeInfo(
@@ -15,7 +17,7 @@ data class RuntimeInfo(
 // 初始运行时入口；任务执行和沙盒功能尚未实现。
 object Runtime{
 
-    fun start() {
+    fun start(info: RuntimeInfo = HostPlatform(RuntimeBuildInfo.VERSION, HostPlatform.UNKNOW)) {
 
     }
 
