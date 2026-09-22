@@ -7,8 +7,8 @@ object EvaCore {
 
 	}
 
-	fun info(): RuntimeInfo {
-		return DeviceInfoUtil.info()
-	}
+//	fun info(): RuntimeInfo {
+//		return DeviceInfoUtil.info()
+//	}
 
 }
