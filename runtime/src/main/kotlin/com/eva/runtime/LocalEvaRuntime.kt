@@ -4,9 +4,9 @@ import com.eva.core.EvaRuntime
 import com.eva.core.HostPlatform
 import com.eva.core.RuntimeInfo
 
-/** Initial runtime entry point; task execution and sandboxing are not implemented yet. */
+// 初始运行时入口；任务执行和沙盒功能尚未实现。
 class LocalEvaRuntime(
-    private val version: String = "0.1.0-SNAPSHOT",
+    private val version: String = RuntimeBuildInfo.VERSION,
 ) : EvaRuntime {
     override fun info(): RuntimeInfo = RuntimeInfo(
         version = version,

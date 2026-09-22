@@ -1,6 +1,6 @@
 package com.eva.core
 
-/** Entry point shared by terminal and graphical clients. */
+// 命令行与图形界面客户端共用的运行时入口。
 interface EvaRuntime {
     fun info(): RuntimeInfo
 }

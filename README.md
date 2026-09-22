@@ -14,6 +14,8 @@
 
 CLI 与桌面应用可以复用同一份运行时实现。移动端可以依赖公共接口，目前未提供移动端运行时。
 
+本工程的版本统一在 `build.gradle.kts` 的 `allprojects.version` 中配置。构建时，`runtime` 自动生成 `RuntimeBuildInfo.VERSION`，供 `LocalEvaRuntime` 默认使用。修改版本并重新构建后，构建产物与 CLI、桌面 UI 显示的运行时版本会同步更新。
+
 ## 独立构建与运行
 
 需要 Java 17 或更高版本。Android 构建还需要 Android SDK 37，并配置 `ANDROID_HOME` 或本目录的 `local.properties`；iOS 构建需要 macOS 和 Xcode。
