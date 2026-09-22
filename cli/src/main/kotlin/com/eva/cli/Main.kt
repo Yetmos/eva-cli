@@ -1,6 +1,5 @@
 package com.eva.cli
 
-import com.eva.runtime.LocalEvaRuntime
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
@@ -22,14 +21,14 @@ fun main(args: Array<String>) {
               info         Show the runtime version and host platform
             """.trimIndent(),
         )
-        "--version" -> println("eva-cli ${LocalEvaRuntime().info().version}")
-        "info" -> {
-            val info = LocalEvaRuntime().info()
-            println("Eva CLI project scaffold")
-            println("Runtime version: ${info.version}")
-            println("Host platform: ${info.host}")
-            println("Agent orchestration, script execution, and sandboxing are not implemented yet.")
-        }
+//        "--version" -> println("eva-cli ${LocalEvaRuntime().info().version}")
+//        "info" -> {
+//            val info = LocalEvaRuntime().info()
+//            println("Eva CLI project scaffold")
+//            println("Runtime version: ${info.version}")
+//            println("Host platform: ${info.host}")
+//            println("Agent orchestration, script execution, and sandboxing are not implemented yet.")
+//        }
         else -> {
             System.err.println("Unknown command: $command. Run eva --help for usage.")
             exitProcess(2)
