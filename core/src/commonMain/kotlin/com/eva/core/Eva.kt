@@ -7,8 +7,6 @@ object Eva {
 
 	}
 
-	fun info(): RuntimeInfo {
-		return DevUtil.info()
-	}
+	fun info() {}
 
 }
