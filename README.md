@@ -38,7 +38,7 @@ cd eva-cli
 
 ## 与 EvaLauncher 集成
 
-EvaLauncher 根工程通过 `includeBuild("eva-cli")` 使用本地源码，并替换 `com.eva:core` 依赖。共享 UI 使用 `core`，CLI 则在本工程内直接依赖 `core`。
+EvaLauncher 根工程通过 `includeBuild("eva-cli")` 使用本地源码，并替换 `com.eva_cli:core` 依赖。共享 UI 使用 `core`，CLI 则在本工程内直接依赖 `core`。
 
 从 EvaLauncher 根目录也可运行：
 
@@ -46,4 +46,4 @@ EvaLauncher 根工程通过 `includeBuild("eva-cli")` 使用本地源码，并�
 ./gradlew :eva-cli:cli:run --args="--help"
 ```
 
-未来迁出独立仓库并发布后，消费方可改用版本化的 `com.eva:core` 依赖。当前尚未选择许可证，也尚未公开发布仓库或依赖包。
+未来迁出独立仓库并发布后，消费方可改用版本化的 `com.eva_cli:core` 依赖。当前尚未选择许可证，也尚未公开发布仓库或依赖包。

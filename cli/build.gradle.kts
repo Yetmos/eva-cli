@@ -21,6 +21,6 @@ dependencies {
 }
 
 application {
-    mainClass = "com.eva.cli.MainKt"
+    mainClass = "com.eva_cli.MainKt"
     applicationName = "eva"
 }

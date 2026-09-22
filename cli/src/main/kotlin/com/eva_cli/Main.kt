@@ -1,4 +1,4 @@
-package com.eva.cli
+package com.eva_cli
 
 import kotlin.system.exitProcess
 

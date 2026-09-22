@@ -5,6 +5,6 @@ plugins {
 }
 
 allprojects {
-    group = "com.eva"
+    group = "com.eva_cli"
     version = "0.1.0-alpha"
 }
