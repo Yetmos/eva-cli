@@ -17,7 +17,7 @@ java {
 }
 
 dependencies {
-    implementation(project(":runtime"))
+    implementation(project(":core"))
 }
 
 application {

@@ -4,9 +4,11 @@ package com.eva.core
 object Eva {
 
 	fun start() {
-
+		Runtime.start()
 	}
 
-	fun info() {}
+	fun info() {
+
+	}
 
 }

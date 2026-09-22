@@ -24,9 +24,6 @@ kotlin {
     }
 
     sourceSets {
-        commonMain.dependencies {
-            api(project(":runtime"))
-        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }

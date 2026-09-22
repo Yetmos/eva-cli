@@ -16,5 +16,4 @@ dependencyResolutionManagement {
 rootProject.name = "eva-cli"
 
 include(":core")
-include(":runtime")
 include(":cli")

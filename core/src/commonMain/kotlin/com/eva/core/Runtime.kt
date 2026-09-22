@@ -1,4 +1,4 @@
-package com.eva.runtime
+package com.eva.core
 
 enum class HostPlatform {
     MACOS,
@@ -9,7 +9,7 @@ enum class HostPlatform {
 }
 
 
-// 初始运行时入口；任务执行和沙盒功能尚未实现。
+// 初始运行时入口
 object Runtime{
 
     fun start() {
