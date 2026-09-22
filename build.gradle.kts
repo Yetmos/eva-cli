@@ -6,5 +6,5 @@ plugins {
 
 allprojects {
     group = "com.eva"
-    version = "0.1.0-SNAPSHOT"
+    version = "0.1.0-alpha"
 }
