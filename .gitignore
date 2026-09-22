@@ -1,1 +1,8 @@
-/build
+.gradle/
+.kotlin/
+**/build/
+.idea/
+*.iml
+.DS_Store
+local.properties
+/gradle/gradle-daemon-jvm.properties
