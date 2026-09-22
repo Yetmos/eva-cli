@@ -11,7 +11,7 @@ enum class Platform {
 object Status{
 
 	// TODO: SDK版本
-	val sdkVersion = "sdkVersion"
+	val sdk = "sdkVersion"
 
 	// TODO: 设备类型
 	val platform = Platform.MACOS
