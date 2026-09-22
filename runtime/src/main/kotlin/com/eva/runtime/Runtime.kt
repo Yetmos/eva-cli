@@ -17,7 +17,7 @@ data class RuntimeInfo(
 // 初始运行时入口；任务执行和沙盒功能尚未实现。
 object Runtime{
 
-    fun start(info: RuntimeInfo = HostPlatform(RuntimeBuildInfo.VERSION, HostPlatform.UNKNOW)) {
+    fun start(info: RuntimeInfo = RuntimeInfo(RuntimeBuildInfo.VERSION, HostPlatform.UNKNOW)) {
 
     }
 
