@@ -1,7 +1,7 @@
 package com.eva.runtime
 
 // INFO: 存放设备信息
-object DeviceInfoUtil {
+object DevUtil {
 
 	// 获取设备信息
 	fun info(): RuntimeInfo = RuntimeInfo(version = RuntimeBuildInfo.VERSION, host = getPlatform())
