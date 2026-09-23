@@ -18,6 +18,8 @@ sealed interface IOPayload {
 
 data class IOEvent(
     val type: IOType,
+    val providerId: String = "",
+    val time: Long = 0L,
     val payload: IOPayload,
 )
 

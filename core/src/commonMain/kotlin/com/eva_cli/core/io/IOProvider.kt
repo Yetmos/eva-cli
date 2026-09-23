@@ -1,5 +1,7 @@
 package com.eva_cli.core.io
 
+import kotlin.collections.mutableListOf
+
 
 interface IOProvider {
 	val id: String
@@ -29,3 +31,6 @@ interface InProvider : IOProvider {
 interface OutProvider : IOProvider {
 	suspend fun emit(event: OutputEvent)
 }
+
+internal expect fun getInProviders(): mutableListOf<InProvider>()
+internal expect fun getOutProviders(): mutableListOf<OutProvider>()

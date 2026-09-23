@@ -43,6 +43,8 @@ runtime.stop()
 
 `emit()` 需要先启动管理器，并按注册顺序广播；单个输出失败后仍会尝试其他输出，最后抛出异常。移除输出源不等待已经开始的输出调用结束。`stop()` 保留注册列表供再次启动使用，所有 `Runtime` 实例共享全局 IO 的启停状态。
 
+`InputEvent` 和 `OutputEvent` 共用 `IOEvent`，包含 `providerId` 和 `time` 字段。`IOManager` 从输入 Provider 收到事件后、交给内部通道前，创建副本并填写来源 Provider ID 和接收时间；输出广播时，为每个 Provider 创建副本并填写目标 Provider ID 和开始投递时间，不修改原事件。`time` 为 UTC Unix 毫秒时间戳，其中输出时间表示开始投递而非发送成功；尚未标记的事件默认 `providerId = ""`、`time = 0L`。
+
 ## 独立构建与运行
 
 需要 Java 17 或更高版本。Android 构建还需要 Android SDK 37，并配置 `ANDROID_HOME` 或本目录的 `local.properties`；iOS 构建需要 macOS 和 Xcode。
