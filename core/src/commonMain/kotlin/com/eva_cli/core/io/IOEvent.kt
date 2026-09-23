@@ -50,11 +50,11 @@ sealed interface IOEvent {
 // 由 [InProvider] 产生的事件。
 data class InputEvent(
     override val payload: IOPayload,
-    override val metadata: Metadata = Metadata(EventType.OUTPUT),
+    override val metadata: Metadata = Metadata(EventType.INPUT),
 ) : IOEvent
 
 // 投递给 [OutProvider] 的事件。
 data class OutputEvent(
     override val payload: IOPayload,
-    override val metadata: Metadata = Metadata(EventType.INPUT),
+    override val metadata: Metadata = Metadata(EventType.OUTPUT),
 ) : IOEvent
