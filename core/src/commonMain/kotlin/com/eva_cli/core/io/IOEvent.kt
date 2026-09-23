@@ -64,7 +64,6 @@ data class InputEvent(
     override val payload: IOPayload,
     val metadata: InputEventMetadata = InputEventMetadata(),
 ) : IOEvent {
-    // 将输入事件转换为未标记、可供输出广播的新事件。
     fun toOutput(): OutputEvent = OutputEvent(payload)
 }
 
