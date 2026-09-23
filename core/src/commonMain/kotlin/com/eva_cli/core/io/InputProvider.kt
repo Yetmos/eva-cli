@@ -8,5 +8,7 @@ package com.eva_cli.core.io
 interface InputProvider {
     fun start() = Unit
     fun stop() = Unit
+
+    // 等待下一条输入，耗尽时返回 null；挂起等待应响应协程取消，以便动态移除。
     suspend fun receive(): InputEvent?
 }

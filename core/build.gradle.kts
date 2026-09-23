@@ -43,6 +43,10 @@ kotlin {
     sourceSets {
         commonMain {
             kotlin.srcDir(generateBuildInfo)
+            dependencies {
+                implementation(libs.kotlinx.coroutines.core)
+                implementation(libs.atomicfu)
+            }
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -2,29 +2,19 @@ package com.eva_cli.core.runtime
 
 import com.eva_cli.core.io.IOManager
 
-/** 绑定一个已配置 IO 管理器的运行时实例。 */
-class Runtime(
-    val ioManager: IOManager,
-) {
-    private var started = false
+// 使用全局 IO 管理器；所有 Runtime 实例共享其启停状态。
+object Runtime {
+    val ioManager: IOManager
+        get() = IOManager
 
     val isStarted: Boolean
-        get() = started
+        get() = ioManager.isStarted
 
     fun start() {
-        if (started) return
-
         ioManager.start()
-        started = true
     }
 
     fun stop() {
-        if (!started) return
-
-        try {
-            ioManager.stop()
-        } finally {
-            started = false
-        }
+        ioManager.stop()
     }
 }

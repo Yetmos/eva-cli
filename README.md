@@ -15,6 +15,34 @@
 
 本工程的版本统一在 `build.gradle.kts` 的 `allprojects.version` 中配置。
 
+## 输入与输出
+
+`IOManager` 是全局单例，支持动态注册多个 `InputProvider` 和 `OutputProvider`：
+
+```kotlin
+IOManager.addInputProvider(consoleInput)
+IOManager.addInputProvider(voiceInput)
+IOManager.addOutputProvider(consoleOutput)
+IOManager.addOutputProvider(windowOutput)
+
+val runtime = Eva.start()
+
+// 可在运行中增删，添加时自动启动，移除时自动停止。
+IOManager.addInputProvider(remoteInput)
+IOManager.removeInputProvider(voiceInput)
+IOManager.removeOutputProvider(windowOutput)
+
+// 在协程中接收任一输入源的事件，并广播给当前输出源。
+val event = IOManager.receive()
+if (event != null) IOManager.emit(event)
+
+runtime.stop()
+```
+
+注册按实例去重，增删方法返回是否发生变更；`inputProviders` 和 `outputProviders` 提供注册列表快照。输入源并发等待，一个输入源挂起不会阻塞其他输入源。管理器停止、没有输入源或当前全部输入源耗尽时，`receive()` 返回 `null`；输入源的挂起等待需要响应协程取消，以便移除和停止。
+
+`emit()` 需要先启动管理器，并按注册顺序广播；单个输出失败后仍会尝试其他输出，最后抛出异常。移除输出源不等待已经开始的输出调用结束。`stop()` 保留注册列表供再次启动使用，所有 `Runtime` 实例共享全局 IO 的启停状态。
+
 ## 独立构建与运行
 
 需要 Java 17 或更高版本。Android 构建还需要 Android SDK 37，并配置 `ANDROID_HOME` 或本目录的 `local.properties`；iOS 构建需要 macOS 和 Xcode。
