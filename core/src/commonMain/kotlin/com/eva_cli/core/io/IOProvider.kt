@@ -1,8 +1,5 @@
 package com.eva_cli.core.io
 
-import kotlin.collections.mutableListOf
-
-
 interface IOProvider {
 	val id: String
 	val name: String
@@ -13,24 +10,17 @@ interface IOProvider {
 	fun stop() = Unit
 }
 
-/**
- * 与平台无关的输入事件来源。
- *
- * 平台适配器应先将原生输入转换为 [InputEvent]，再交给核心运行时处理。
- */
 interface InProvider : IOProvider {
-	// 等待下一条输入，耗尽时返回 null；挂起等待应响应协程取消，以便动态移除。
 	suspend fun receive(): InputEvent?
 }
 
-/**
- * 与平台无关的输出事件接收端。
- *
- * 平台适配器负责决定如何呈现或传递 [OutputEvent]。
- */
 interface OutProvider : IOProvider {
 	suspend fun emit(event: OutputEvent)
 }
 
-internal expect fun getInProviders(): mutableListOf<InProvider>()
-internal expect fun getOutProviders(): mutableListOf<OutProvider>()
+// 公共层持有的输入、输出 Provider 列表，停止后保留注册结果。
+internal val inProviders: MutableList<InProvider> = mutableListOf()
+internal val outProviders: MutableList<OutProvider> = mutableListOf()
+
+// 注册平台内置 Provider；初始化失败后可能重试，实现应避免重复注册。
+internal expect fun initProviders()
