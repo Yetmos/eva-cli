@@ -10,7 +10,7 @@ interface IOProvider {
 	var status: IOStatus
 	val name: String
 	val desc: String
-	// 运行中控制 是否处理InProvider接收的 InputEvent，是否给 OutProvider 分发 OutputEvent
+	// 控制 IOManager 是否处理InProvider接收的 InputEvent，是否给 OutProvider 分发 OutputEvent
 	var enable: Boolean
 
 	fun start() = Unit
