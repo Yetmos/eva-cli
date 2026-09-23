@@ -2,8 +2,10 @@ package com.eva_cli.core.io
 
 // Provider的状态，由各平台(Android/iOS/mac/windows/linux)处理
 enum class IOStatus {
+	STARTING,
+	RUN,
+	PAUSE,
 	STOP,
-	RUN
 }
 interface IOProvider {
 	val id: String
