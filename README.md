@@ -17,7 +17,7 @@
 
 ## 输入与输出
 
-`IOManager` 是全局单例，支持动态注册多个 `InputProvider` 和 `OutputProvider`：
+`IOManager` 是全局单例，支持动态注册多个 `InputProvider` 和 `OutProvider`：
 
 ```kotlin
 IOManager.addInputProvider(consoleInput)
