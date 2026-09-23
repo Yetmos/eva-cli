@@ -30,45 +30,31 @@ sealed interface IOPayload {
     }
 }
 
-// 输入事件从 Provider 接收时记录的元数据。
-data class InputEventMetadata(
-    val sourceProviderId: String? = null,
-    val receivedAtMillis: Long? = null,
-)
+enum class EventType {
+    INPUT,
+    OUTPUT
+}
 
-// 输出事件开始投递到 Provider 时记录的元数据。
-data class OutputEventMetadata(
-    val targetProviderId: String? = null,
-    val dispatchStartedAtMillis: Long? = null,
+data class Metadata(
+    val eventType: EventType,
+    val providerId: String? = null,
+    val time: Long? = null,
 )
 
 // 输入事件和输出事件共用的基础结构。
 sealed interface IOEvent {
+    val metadata: Metadata
     val payload: IOPayload
-
-    val providerId: String
-        get() = when (this) {
-            is InputEvent -> metadata.sourceProviderId.orEmpty()
-            is OutputEvent -> metadata.targetProviderId.orEmpty()
-        }
-
-    val time: Long
-        get() = when (this) {
-            is InputEvent -> metadata.receivedAtMillis ?: 0L
-            is OutputEvent -> metadata.dispatchStartedAtMillis ?: 0L
-        }
 }
 
 // 由 [InProvider] 产生的事件。
 data class InputEvent(
     override val payload: IOPayload,
-    val metadata: InputEventMetadata = InputEventMetadata(),
-) : IOEvent {
-    fun toOutput(): OutputEvent = OutputEvent(payload)
-}
+    override val metadata: Metadata = Metadata(EventType.OUTPUT),
+) : IOEvent
 
 // 投递给 [OutProvider] 的事件。
 data class OutputEvent(
     override val payload: IOPayload,
-    val metadata: OutputEventMetadata = OutputEventMetadata(),
+    override val metadata: Metadata = Metadata(EventType.INPUT),
 ) : IOEvent
