@@ -27,7 +27,7 @@ IOManager.addOutputProvider(windowOutput)
 
 val runtime = Eva.start()
 
-// 可在运行中增删，添加时自动启动，移除时自动停止。
+// 可在运行中增删；已启用的 Provider 添加时自动启动，移除时自动停止。
 IOManager.addInputProvider(remoteInput)
 IOManager.removeInputProvider(voiceInput)
 IOManager.removeOutputProvider(windowOutput)
@@ -39,7 +39,7 @@ if (event != null) IOManager.emit(event)
 runtime.stop()
 ```
 
-注册按实例去重，增删方法返回是否发生变更；`inputProviders` 和 `outputProviders` 提供注册列表快照。输入源并发等待，一个输入源挂起不会阻塞其他输入源。管理器停止、没有输入源或当前全部输入源耗尽时，`receive()` 返回 `null`；输入源的挂起等待需要响应协程取消，以便移除和停止。
+注册按实例去重，增删方法返回是否发生变更；`inputProviders` 和 `outputProviders` 提供注册列表快照。`enable = false` 的 Provider 会保留在注册列表中，但不会启动或参与收发；运行中修改 `enable` 后，会在下一次 `receive()` 或 `emit()` 调用前同步。输入源并发等待，一个输入源挂起不会阻塞其他输入源。管理器停止、没有输入源或当前全部输入源耗尽时，`receive()` 返回 `null`；输入源的挂起等待需要响应协程取消，以便移除和停止。
 
 `emit()` 需要先启动管理器，并按注册顺序广播；单个输出失败后仍会尝试其他输出，最后抛出异常。移除输出源不等待已经开始的输出调用结束。`stop()` 保留注册列表供再次启动使用，所有 `Runtime` 实例共享全局 IO 的启停状态。
 
