@@ -1,19 +1,18 @@
 package com.eva_cli.core.io
 
+import kotlin.time.Clock
+import kotlin.time.Instant
+import kotlin.uuid.Uuid
 
 sealed interface IOPayload {
     data class Text(val value: String) : IOPayload
 
-    /**
-     * 二进制数据在写入和读取时都会复制，避免某个输出 Provider 修改其他
-     * Provider 看到的字节内容。
-     */
+    // 二进制数据在写入和读取时都会复制，避免某个输出 Provider 修改其他  Provider 看到的字节内容
     class Binary(value: ByteArray, val mimeType: String? = null) : IOPayload {
         private val bytes = value.copyOf()
 
-        /** 返回副本，避免调用方直接修改事件内容。 */
-        val value: ByteArray
-            get() = bytes.copyOf()
+        // 返回新的字节数组副本，避免调用方修改事件内容。
+        fun toByteArray(): ByteArray = bytes.copyOf()
 
         val size: Int
             get() = bytes.size
@@ -30,31 +29,29 @@ sealed interface IOPayload {
     }
 }
 
-enum class EventType {
-    INPUT,
-    OUTPUT
-}
-
 data class Metadata(
-    val eventType: EventType,
     val providerId: String? = null,
-    val time: Long? = null,
+    /** 事件创建时间；转发时应通过 copy 保留。 */
+    val createdAt: Instant = Clock.System.now(),
 )
 
 // 输入事件和输出事件共用的基础结构。
 sealed interface IOEvent {
+    val id: Uuid
     val metadata: Metadata
     val payload: IOPayload
 }
 
 // 由 [InProvider] 产生的事件。
 data class InputEvent(
+    override val id: Uuid = Uuid.random(),
     override val payload: IOPayload,
-    override val metadata: Metadata = Metadata(EventType.INPUT),
+    override val metadata: Metadata = Metadata(),
 ) : IOEvent
 
 // 投递给 [OutProvider] 的事件。
 data class OutputEvent(
+    override val id: Uuid = Uuid.random(),
     override val payload: IOPayload,
-    override val metadata: Metadata = Metadata(EventType.OUTPUT),
+    override val metadata: Metadata = Metadata(),
 ) : IOEvent
