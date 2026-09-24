@@ -7,20 +7,20 @@ object LogUtil {
 
 	}
 
-	fun logW(title: String, desc: String? = null) {
-		LogManager.log(LogData(level = LogLevel.WARN, title = title, desc = desc))
+	fun logW(eventType: EventType, title: String, desc: String? = null) {
+		LogManager.log(LogData(level = LogLevel.WARN, eventType = eventType, title = title, desc = desc))
 	}
 
-	fun logD(title: String, desc: String? = null) {
-		LogManager.log(LogData(level = LogLevel.DEBUG, title = title, desc = desc))
+	fun logD(eventType: EventType, title: String, desc: String? = null) {
+		LogManager.log(LogData(level = LogLevel.DEBUG, eventType = eventType, title = title, desc = desc))
 	}
 
-	fun logI(title: String, desc: String? = null) {
-		LogManager.log(LogData(level = LogLevel.INFO, title = title, desc = desc))
+	fun logI(eventType: EventType, title: String, desc: String? = null) {
+		LogManager.log(LogData(level = LogLevel.INFO, eventType = eventType, title = title, desc = desc))
 	}
 
-	fun logE(title: String, desc: String? = null) {
-		LogManager.log(LogData(level = LogLevel.ERROR, title = title, desc = desc))
+	fun logE(eventType: EventType, title: String, desc: String? = null) {
+		LogManager.log(LogData(level = LogLevel.ERROR, eventType = eventType, title = title, desc = desc))
 	}
 
 }

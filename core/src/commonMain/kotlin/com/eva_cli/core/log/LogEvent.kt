@@ -2,9 +2,14 @@ package com.eva_cli.core.log
 
 import kotlin.uuid.Uuid
 
-sealed interface LogEvent
+// INFO: 日志类型 CUSTOM - 自定义事件
+enum class  EventType {
+	CUSTOM,
+	IO,
+	RUNTIME,
+}
 
-// INFO: 鏃ュ織鍒嗙骇鏋氫妇
+// INFO: 日志级别
 enum class LogLevel {
 	WARN,
 	DEBUG,
@@ -12,9 +17,4 @@ enum class LogLevel {
 	ERROR,
 }
 
-data class LogData(val id: Uuid = Uuid.random(), val level: LogLevel, val title: String, val desc: String? = null)
-
-// INFO: 鏀綢O鐩稿叧鐨勬棩蹇椾簨浠?
-enum class IOLogEvent : LogEvent {
-
-}
+data class LogData(val id: Uuid = Uuid.random(), val level: LogLevel, val eventType: EventType, val title: String, val desc: String? = null)
