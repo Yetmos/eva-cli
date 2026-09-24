@@ -32,4 +32,4 @@ internal val inProviders: MutableList<InProvider> = mutableListOf()
 internal val outProviders: MutableList<OutProvider> = mutableListOf()
 
 // 注册平台内置 Provider；初始化失败后可能重试，实现应避免重复注册。
-internal expect fun initProviders()
+internal expect fun initIOProviders()
