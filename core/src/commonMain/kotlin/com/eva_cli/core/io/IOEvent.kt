@@ -30,7 +30,7 @@ sealed interface IOPayload {
 }
 
 data class Metadata(
-    val providerId: String? = null,
+    val providerId: Uuid? = null,
     val createdAt: Instant = Clock.System.now(),
 )
 

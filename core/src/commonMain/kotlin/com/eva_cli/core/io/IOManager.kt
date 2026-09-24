@@ -15,6 +15,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import kotlin.uuid.Uuid
 
 /**
  * 全局输入、输出管理器。每次启动固定已注册的 Provider 列表，注册变更在下次启动生效。
@@ -31,7 +32,10 @@ object IOManager {
     val isStarted: Boolean
         get() = synchronized(lock) { session != null }
 
-    // 启动所有已注册的 Provider，并将启用的输入交给 [IOHandler]。重复调用不会重复启动。
+    /**
+     * 启动所有已注册的 Provider，并将启用的输入交给 [IOHandler]。重复调用不会重复启动。
+     * 不同实例的 ID 必须唯一；冲突时在启动任何 Provider 前抛出 IllegalArgumentException。
+     */
     fun start() = synchronized(lock) {
         check(!changingLifecycle) { "Cannot start IOManager from a Provider lifecycle callback" }
         if (session != null) return@synchronized
@@ -49,6 +53,10 @@ object IOManager {
             val inputs = inProviders.distinctInstances()
             val outputs = outProviders.distinctInstances()
             val providers = (inputs + outputs).distinctInstances()
+            val providerIds = mutableSetOf<Uuid>()
+            for (provider in providers) {
+                require(providerIds.add(provider.id)) { "Duplicate IOProvider id '${provider.id}'" }
+            }
             for (provider in providers) {
                 // start 抛错的 Provider 也可能已分配资源，必须参与回滚。
                 started.add(provider)
@@ -88,19 +96,19 @@ object IOManager {
     /**
      * 按注册顺序投递输出。providerId 为 null 时广播，否则仅投递给 ID 匹配的输出 Provider。
      * 每次投递前检查 enable，跳过已禁用的 Provider；已开始的投递不会因禁用而取消。
-     * 显式指定的 ID 不存在或调用时没有启用的匹配项时抛出 IllegalArgumentException。
+     * 显式指定的 ID 不存在或对应 Provider 未启用时抛出 IllegalArgumentException。
      * 普通失败在完成其他投递后聚合抛出；取消立即中断投递。
      */
-    suspend fun emit(event: OutputEvent, providerId: String? = null) {
+    suspend fun emit(event: OutputEvent, providerId: Uuid? = null) {
         val callerContext = currentCoroutineContext()
         callerContext.ensureActive()
         val active = synchronized(lock) { checkNotNull(session) { "IOManager is not started" } }
         val targets = if (providerId == null) active.outputs else {
-            active.outputs.filter { it.id == providerId }.also {
-                require(it.any { provider -> provider.enable }) {
-                    "No enabled output Provider with id '$providerId'"
-                }
+            val target = active.outputs.firstOrNull { it.id == providerId }
+            require(target != null && target.enable) {
+                "No enabled output Provider with id '$providerId'"
             }
+            listOf(target)
         }
         // 由运行会话管理投递任务，同时保留调用方的调度器和协程上下文。
         val delivery = active.scope.async(callerContext.minusKey(Job)) {
