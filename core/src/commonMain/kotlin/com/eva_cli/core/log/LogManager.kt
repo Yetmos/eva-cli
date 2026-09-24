@@ -7,8 +7,11 @@ object LogManager {
 		LogUtil.init()
 	}
 
-	// TODO: 日志处理器
+	// INFO: 日志处理器
 	fun log(data: LogData) {
-
+		// 打印到对应平台的日志输出
+		logPlatform(data)
+		// TODO: 存储，日志分析，状态处理
 	}
+
 }

@@ -1,5 +1,5 @@
 package com.eva_cli.core.log
 
-internal actual fun logPlatform(level: LogLevel, title: String, desc: String) {
-    println("[${level.name}] $title: $desc")
+internal actual fun logPlatform(data: LogData) {
+    println("[${data.level.name}] ${data.title}: ${data.desc.orEmpty()}")
 }
