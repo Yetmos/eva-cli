@@ -31,7 +31,6 @@ sealed interface IOPayload {
 
 data class Metadata(
     val providerId: String? = null,
-    /** 事件创建时间；转发时应通过 copy 保留。 */
     val createdAt: Instant = Clock.System.now(),
 )
 
