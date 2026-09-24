@@ -6,7 +6,7 @@ object IOHandler {
         println("[IOHandler] $event")
     }
 
-    // 由 IOManager 投递给指定的输出 Provider；未指定 ID 时广播给本次启动的输出 Provider。
+    // 由 IOManager 投递给指定的输出 Provider；未指定 ID 时广播，投递前实时检查 enable。
     suspend fun sendOutput(event: OutputEvent, providerId: String? = null) {
         IOManager.emit(event, providerId)
     }
