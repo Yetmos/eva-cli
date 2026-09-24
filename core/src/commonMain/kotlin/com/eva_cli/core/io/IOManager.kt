@@ -156,12 +156,6 @@ object IOManager {
     private fun aggregate(failure: Throwable?, cause: Throwable): Throwable =
         failure?.also { if (it !== cause) it.addSuppressed(cause) } ?: cause
 
-    private fun <T : IOProvider> List<T>.distinctInstances(): List<T> =
-        fold(mutableListOf()) { unique, provider ->
-            if (unique.none { it === provider }) unique.add(provider)
-            unique
-        }
-
     private class Session(
         val inputs: List<InProvider>,
         val outputs: List<OutProvider>,
