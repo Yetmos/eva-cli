@@ -9,7 +9,8 @@ object IOHandler {
     }
 
     // 由 IOManager 投递给指定的输出 Provider；未指定 ID 时广播，投递前实时检查 enable。
-    suspend fun sendOutput(event: OutputEvent, providerId: Uuid? = null) {
-        IOManager.emit(event, providerId)
+    suspend fun sendOutput(event: OutputEvent) {
+        IOManager.emit(event)
     }
+
 }
