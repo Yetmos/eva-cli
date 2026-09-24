@@ -12,7 +12,12 @@ interface IOProvider {
 	var status: IOStatus
 	val name: String
 	val desc: String
-	// 控制 IOManager 是否处理InProvider接收的 InputEvent，是否给 OutProvider 分发 OutputEvent
+	/**
+	 * 实时控制输入处理和输出投递，不控制 start/stop。
+	 * 禁用时仍接收输入，但丢弃事件；重新启用后处理后续收到的事件。
+	 * 已处理的输入记录和已开始的输出投递不受后续开关变更影响。
+	 * 实现必须保证跨线程读写可见性，例如使用原子变量或平台的 volatile 属性。
+	 */
 	var enable: Boolean
 
 	fun start() = Unit
