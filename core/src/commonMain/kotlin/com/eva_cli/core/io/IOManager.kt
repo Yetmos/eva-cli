@@ -10,9 +10,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -34,7 +31,7 @@ object IOManager {
     val isStarted: Boolean
         get() = synchronized(lock) { session != null }
 
-    /** 启动所有已注册的 Provider，并将启用的输入交给 [IOHandler]。重复调用不会重复启动。 */
+    // 启动所有已注册的 Provider，并将启用的输入交给 [IOHandler]。重复调用不会重复启动。
     fun start() = synchronized(lock) {
         check(!changingLifecycle) { "Cannot start IOManager from a Provider lifecycle callback" }
         if (session != null) return@synchronized
@@ -64,7 +61,7 @@ object IOManager {
             session?.let {
                 session = null
                 stoppingSession = it
-                it.cancel()
+                it.job.cancel()
             }
             stopProviders(started, failure)
             throw failure
@@ -86,22 +83,6 @@ object IOManager {
         }
         stopped?.job?.join()
         failure?.let { throw it }
-    }
-
-    /**
-     * 观察已交给 [IOHandler] 的输入。多个调用方竞争消费同一队列。
-     * 最多保留最近 64 条事件或输入异常，超出后丢弃最早记录；自动处理不依赖调用此方法。
-     * 输入异常消费一次后抛出；未启动、已停止或所有输入结束且队列为空时返回 null。
-     */
-    suspend fun receive(): InputEvent? {
-        val active = synchronized(lock) { session } ?: return null
-        val signal = active.signals.receiveCatching().getOrNull() ?: return null
-        currentCoroutineContext().ensureActive()
-        if (!active.job.isActive) return null
-        return when (signal) {
-            is InputSignal.Event -> signal.event
-            is InputSignal.Failure -> throw signal.cause
-        }
     }
 
     /**
@@ -153,7 +134,7 @@ object IOManager {
         session = null
         stoppingSession = active
         try {
-            active.cancel()
+            active.job.cancel()
             stopProviders(active.providers)?.let { throw it }
         } finally {
             changingLifecycle = false
@@ -181,11 +162,6 @@ object IOManager {
             unique
         }
 
-    private sealed interface InputSignal {
-        data class Event(val event: InputEvent) : InputSignal
-        data class Failure(val cause: Throwable) : InputSignal
-    }
-
     private class Session(
         val inputs: List<InProvider>,
         val outputs: List<OutProvider>,
@@ -193,24 +169,9 @@ object IOManager {
     ) {
         val job = SupervisorJob()
         val scope = CoroutineScope(job + Dispatchers.Default)
-        val signals = Channel<InputSignal>(capacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
         fun startInputs() {
-            scope.launch {
-                try {
-                    coroutineScope {
-                        inputs.forEach { provider -> launch { readInput(provider) } }
-                    }
-                } finally {
-                    signals.close()
-                }
-            }
-        }
-
-        fun cancel() {
-            // 丢弃旧队列并唤醒 receive，避免重启后观察到上次运行的事件。
-            signals.cancel()
-            job.cancel()
+            inputs.forEach { provider -> scope.launch { readInput(provider) } }
         }
 
         private suspend fun readInput(provider: InProvider) {
@@ -223,7 +184,6 @@ object IOManager {
                     if (provider.enable) {
                         val event = received.copy(metadata = received.metadata.copy(providerId = provider.id))
                         IOHandler.handleInput(event)
-                        signals.trySend(InputSignal.Event(event))
                     }
                     yield()
                 }
@@ -231,7 +191,6 @@ object IOManager {
                 throw cancelled
             } catch (failure: Throwable) {
                 println("[IOManager] Input Provider '${provider.id}' failed: $failure")
-                signals.trySend(InputSignal.Failure(failure))
             }
         }
     }
