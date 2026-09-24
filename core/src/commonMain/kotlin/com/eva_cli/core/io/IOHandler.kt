@@ -1,15 +1,13 @@
 package com.eva_cli.core.io
 
 object IOHandler {
+    // 被 IOManager 调用，处理接收的消息；暂时只记录事件，后续再调用其他模块。
+    fun handleInput(event: InputEvent) {
+        println("[IOHandler] $event")
+    }
 
-	// TODO: 被IOManager调用, 处理IOManager中接收的消息
-	fun handleInput() {
-
-	}
-
-	// TODO: 调用IOManager, 分发消息给IOManager，IOManager分发给对应的 outProvider
-	fun sendOutput() {
-
-	}
-
+    // 由 IOManager 投递给指定的输出 Provider；未指定 ID 时广播给本次启动的输出 Provider。
+    suspend fun sendOutput(event: OutputEvent, providerId: String? = null) {
+        IOManager.emit(event, providerId)
+    }
 }
