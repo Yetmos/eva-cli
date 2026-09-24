@@ -1,14 +1,18 @@
 package com.eva_cli.core.io
 
+import kotlin.uuid.Uuid
+
 // Provider的状态，由各平台(Android/iOS/mac/windows/linux)处理
 enum class IOStatus {
-	STARTING,
-	RUN,
-	PAUSE,
 	STOP,
+	STARTING,
+	IDLE,
+	WORKING,
 }
+
 interface IOProvider {
-	val id: String
+	// 实例的唯一标识，创建时确定且保持不变；需要跨重启复用时由实现持久化。
+	val id: Uuid
 	var status: IOStatus
 	val name: String
 	val desc: String
@@ -32,9 +36,5 @@ interface OutProvider : IOProvider {
 	suspend fun emit(event: OutputEvent)
 }
 
-// 公共层持有的输入、输出 Provider 列表，停止后保留注册结果。
-internal val inProviders: MutableList<InProvider> = mutableListOf()
-internal val outProviders: MutableList<OutProvider> = mutableListOf()
-
-// 注册平台内置 Provider；初始化失败后可能重试，实现应避免重复注册。
+// 通过 IOManager 注册平台内置 Provider；初始化失败后可能重试，应复用已注册的实例。
 internal expect fun initIOProviders()

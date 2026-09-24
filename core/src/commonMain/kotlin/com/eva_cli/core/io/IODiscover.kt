@@ -11,12 +11,4 @@ object IODiscover {
 
 	}
 
-	fun discoverInProvider() {
-
-	}
-
-	fun discoverOutProvider() {
-
-	}
-
 }
