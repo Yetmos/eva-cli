@@ -7,7 +7,7 @@ object IOHandler {
 
 	}
 
-	// TODO: 调用IOManager, 分发消息给IOManager
+	// TODO: 调用IOManager, 分发消息给IOManager，IOManager分发给对应的 outProvider
 	fun sendOutput() {
 
 	}
