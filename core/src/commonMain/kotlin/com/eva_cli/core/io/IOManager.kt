@@ -60,7 +60,12 @@ object IOManager {
         inProviders[event.metadata.providerId]?.apply {
             if (enable) {
                 IOHandler.receive(event)
+            } else {
+                IOHandler.handleReceiveFail(event, "Provider[${event.metadata.providerId}] is not enable")
             }
+        }
+        if (inProviders[event.metadata.providerId] == null) {
+            IOHandler.handleReceiveFail(event, "Provider[${event.metadata.providerId}] is not exit")
         }
     }
 

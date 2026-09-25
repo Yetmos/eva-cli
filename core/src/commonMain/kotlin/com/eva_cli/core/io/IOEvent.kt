@@ -37,6 +37,8 @@ data class Metadata(
 // 输入事件和输出事件共用的基础结构。
 sealed interface IOEvent {
     val id: Uuid
+    // 分组id
+    val gid: Uuid?
     val metadata: Metadata
     val payload: IOPayload
 }
@@ -44,6 +46,7 @@ sealed interface IOEvent {
 // 由 [InProvider] 产生的事件。
 data class InEvent(
     override val id: Uuid = Uuid.random(),
+    override val gid: Uuid?,
     override val payload: IOPayload,
     override val metadata: Metadata = Metadata(),
 ) : IOEvent
@@ -51,6 +54,7 @@ data class InEvent(
 // 投递给 [OutProvider] 的事件。
 data class OutEvent(
     override val id: Uuid = Uuid.random(),
+    override val gid: Uuid?,
     override val payload: IOPayload,
     override val metadata: Metadata = Metadata(),
 ) : IOEvent

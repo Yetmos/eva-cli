@@ -24,4 +24,9 @@ object IOHandler {
         // TODO: 进行其他的处理，如降级失败重试等
     }
 
+    suspend fun handleReceiveFail(event: InEvent, desc: String) {
+        LogUtil.logI(EventType.IO, IOLogConfig.RECEIVE_FAIL, desc)
+        // TODO: 进行其他的处理，如降级失败重试等
+    }
+
 }
