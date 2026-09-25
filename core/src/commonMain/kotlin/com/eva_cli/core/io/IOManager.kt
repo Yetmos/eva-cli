@@ -10,14 +10,14 @@ object IOManager {
             try {
                 provider.start()
             } catch (cause: Throwable) {
-                LogUtil.logE(EventType.IO, "Provider start error ", cause.message)
+                LogUtil.logE(EventType.IO, "Provider start error", desc = cause.message, throwable = cause)
             }
         }
         for (provider in outProviders.values) {
             try {
                 provider.start()
             } catch (cause: Throwable) {
-                LogUtil.logE(EventType.IO, "Provider start error ", cause.message)
+                LogUtil.logE(EventType.IO, "Provider start error", desc = cause.message, throwable = cause)
             }
         }
     }
@@ -27,14 +27,14 @@ object IOManager {
             try {
                 provider.stop()
             } catch (cause: Throwable) {
-                LogUtil.logE(EventType.IO, "Provider stop error ", cause.message)
+                LogUtil.logE(EventType.IO, "Provider stop error", desc = cause.message, throwable = cause)
             }
         }
         for (provider in outProviders.values) {
             try {
                 provider.stop()
             } catch (cause: Throwable) {
-                LogUtil.logE(EventType.IO, "Provider stop error ", cause.message)
+                LogUtil.logE(EventType.IO, "Provider stop error", desc = cause.message, throwable = cause)
             }
         }
     }

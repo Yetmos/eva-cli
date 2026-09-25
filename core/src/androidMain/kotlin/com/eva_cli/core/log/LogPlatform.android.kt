@@ -1,15 +1,6 @@
 package com.eva_cli.core.log
 
-import android.util.Log
+import co.touchlab.kermit.LogWriter
+import co.touchlab.kermit.platformLogWriter
 
-internal actual fun logPlatform(data: LogData) {
-	val message = "[${data.eventType.name}] ${data.name}: ${data.desc.orEmpty()}"
-	when (data.level) {
-        LogLevel.ERROR -> Log.e(LOG_TAG, message)
-        LogLevel.WARN -> Log.w(LOG_TAG, message)
-        LogLevel.INFO -> Log.i(LOG_TAG, message)
-        LogLevel.DEBUG -> Log.d(LOG_TAG, message)
-    }
-}
-
-private const val LOG_TAG = "EvaCore"
+internal actual fun coreLogWriter(): LogWriter = platformLogWriter()

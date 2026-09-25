@@ -1,7 +1,6 @@
 package com.eva_cli.core.log
 
-import platform.Foundation.NSLog
+import co.touchlab.kermit.LogWriter
+import co.touchlab.kermit.platformLogWriter
 
-internal actual fun logPlatform(data: LogData) {
-    NSLog("[${data.level.name}][${data.eventType.name}] ${data.name}: ${data.desc.orEmpty()}")
-}
+internal actual fun coreLogWriter(): LogWriter = platformLogWriter()
