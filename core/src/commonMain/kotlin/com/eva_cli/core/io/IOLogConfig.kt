@@ -6,6 +6,5 @@ object IOLogConfig {
     const val UNREGISTER_FAIL = "unregister_fail"
     const val EMIT_FAIL = "emit_fail"
     const val RECEIVE_FAIL = "receive_fail"
-
 }
 

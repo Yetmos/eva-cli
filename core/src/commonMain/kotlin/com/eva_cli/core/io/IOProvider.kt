@@ -43,8 +43,5 @@ interface OutProvider : IOProvider {
 	suspend fun emit(event: OutEvent)
 }
 
-val inProviders = LinkedHashMap<Uuid, InProvider>()
-val outProviders = LinkedHashMap<Uuid, OutProvider>()
-
 // 通过 IOManager 注册平台内置 Provider；初始化失败后可能重试，应复用已注册的实例。
 internal expect fun initIOProviders()

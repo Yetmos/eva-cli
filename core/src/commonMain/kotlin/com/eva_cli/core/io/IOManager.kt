@@ -6,55 +6,48 @@ import kotlin.uuid.Uuid
 
 object IOManager {
 
+    private val providers = LinkedHashMap<Uuid, IOProvider>()
+
+    /** 按唯一 id 注册；启动失败时撤销本次登记并抛出原异常。 */
     fun register(provider: IOProvider) {
-        if (provider is InProvider) {
-            if (inProviders.values.contains(provider)) {
-                LogUtil.logI(EventType.IO, IOLogConfig.REGISTER_FAIL, "The InProvider[${provider.id}] has been registered.")
-            } else {
-                inProviders[provider.id] = provider
-                provider.start()
-            }
-        } else if (provider is OutProvider) {
-            if (outProviders.values.contains(provider)) {
-                LogUtil.logI(EventType.IO, IOLogConfig.REGISTER_FAIL, "The OutProvider[${provider.id}] has been registered.")
-            } else {
-                outProviders[provider.id] = provider
-                provider.start()
-            }
-        } else {
+        if (provider !is InProvider && provider !is OutProvider) {
             LogUtil.logI(EventType.IO, IOLogConfig.REGISTER_FAIL, "Not found the provider[${provider.id}] type")
+            return
+        }
+
+        val id = provider.id
+        if (providers.containsKey(id)) {
+            LogUtil.logI(EventType.IO, IOLogConfig.REGISTER_FAIL, "The provider[$id] has been registered.")
+            return
+        }
+
+        providers[id] = provider
+        try {
+            provider.start()
+        } catch (cause: Throwable) {
+            if (providers[id] === provider) {
+                providers.remove(id)
+            }
+            throw cause
         }
     }
 
+    /** 仅注销已登记的同一实例；停止失败时保留登记并抛出原异常。 */
     fun unregister(provider: IOProvider) {
-        if (provider is InProvider) {
-            if (inProviders.values.contains(provider)) {
-                provider.stop()
-                inProviders.remove(provider.id)
-            } else {
-                LogUtil.logI(EventType.IO, IOLogConfig.UNREGISTER_FAIL, "The InProvider not the provider[${provider.id}].")
-            }
-        } else if (provider is OutProvider) {
-            if (outProviders.values.contains(provider)) {
-                provider.stop()
-                outProviders.remove(provider.id)
-            } else {
-                LogUtil.logI(EventType.IO, IOLogConfig.UNREGISTER_FAIL, "The OutProvider not the provider[${provider.id}].")
-            }
-        } else {
-            LogUtil.logI(EventType.IO, IOLogConfig.UNREGISTER_FAIL, "Not found the provider[${provider.id}] type")
+        val id = provider.id
+        if (providers[id] !== provider) {
+            LogUtil.logI(EventType.IO, IOLogConfig.UNREGISTER_FAIL, "The provider[$id] is not the registered instance.")
+            return
+        }
+
+        provider.stop()
+        if (providers[id] === provider) {
+            providers.remove(id)
         }
     }
 
     fun start() {
-        for (provider in inProviders.values) {
-            try {
-                provider.start()
-            } catch (cause: Throwable) {
-                LogUtil.logE(EventType.IO, "Provider start error", desc = cause.message, throwable = cause)
-            }
-        }
-        for (provider in outProviders.values) {
+        for (provider in providers.values) {
             try {
                 provider.start()
             } catch (cause: Throwable) {
@@ -64,14 +57,7 @@ object IOManager {
     }
 
     fun stop() {
-        for (provider in inProviders.values) {
-            try {
-                provider.stop()
-            } catch (cause: Throwable) {
-                LogUtil.logE(EventType.IO, "Provider stop error", desc = cause.message, throwable = cause)
-            }
-        }
-        for (provider in outProviders.values) {
+        for (provider in providers.values) {
             try {
                 provider.stop()
             } catch (cause: Throwable) {
@@ -85,7 +71,7 @@ object IOManager {
 
         val providerId = event.metadata.providerId
             ?: return IOHandler.handleEmitFail(event, "providerId is null")
-        val provider = outProviders[providerId]
+        val provider = providers[providerId] as? OutProvider
             ?: return IOHandler.handleEmitFail(event, "Provider[$providerId] does not exist")
 
         if (!provider.enable) {
@@ -107,7 +93,7 @@ object IOManager {
     suspend fun receive(event: InEvent) {
         val providerId = event.metadata.providerId
             ?: return IOHandler.handleReceiveFail(event, "providerId is null")
-        val provider = inProviders[providerId]
+        val provider = providers[providerId] as? InProvider
             ?: return IOHandler.handleReceiveFail(event, "Provider[$providerId] does not exist")
 
         if (!provider.enable) {
