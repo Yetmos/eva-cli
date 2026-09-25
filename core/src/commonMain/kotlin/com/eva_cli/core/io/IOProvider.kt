@@ -23,19 +23,20 @@ interface IOProvider {
 	 * 实现必须保证跨线程读写可见性，例如使用原子变量或平台的 volatile 属性。
 	 */
 	var enable: Boolean
-
 	fun start() = Unit
 	fun stop() = Unit
 }
 
 interface InProvider : IOProvider {
-	suspend fun receive(event: InputEvent) {
+	suspend fun receive(event: InEvent) {
+		if (!enable) return
+		event.metadata.providerId = id
 		IOManager.receive(event)
 	}
 }
 
 interface OutProvider : IOProvider {
-	suspend fun emit(event: OutputEvent)
+	suspend fun emit(event: OutEvent)
 }
 
 val inProviders = LinkedHashMap<Uuid, InProvider>()

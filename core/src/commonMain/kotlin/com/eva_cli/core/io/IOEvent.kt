@@ -30,7 +30,7 @@ sealed interface IOPayload {
 }
 
 data class Metadata(
-    val providerId: Uuid? = null,
+    var providerId: Uuid? = null,
     val createdAt: Instant = Clock.System.now(),
 )
 
@@ -42,14 +42,14 @@ sealed interface IOEvent {
 }
 
 // 由 [InProvider] 产生的事件。
-data class InputEvent(
+data class InEvent(
     override val id: Uuid = Uuid.random(),
     override val payload: IOPayload,
     override val metadata: Metadata = Metadata(),
 ) : IOEvent
 
 // 投递给 [OutProvider] 的事件。
-data class OutputEvent(
+data class OutEvent(
     override val id: Uuid = Uuid.random(),
     override val payload: IOPayload,
     override val metadata: Metadata = Metadata(),

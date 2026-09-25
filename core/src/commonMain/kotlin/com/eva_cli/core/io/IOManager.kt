@@ -39,18 +39,27 @@ object IOManager {
         }
     }
 
-    suspend fun emit(event: OutputEvent) {
+    suspend fun emit(event: OutEvent) {
         outProviders[event.metadata.providerId]?.apply {
             if (enable) {
-                emit(event)
+                if (status == IOStatus.IDLE) {
+                    emit(event)
+                } else {
+                    IOHandler.handleEmitFail(event, "Provider[${event.metadata.providerId}] is not idle, status is [${this.status.name}]")
+                }
+            } else {
+                IOHandler.handleEmitFail(event, "Provider[${event.metadata.providerId}] is not enable")
             }
+        }
+        if (outProviders[event.metadata.providerId] == null) {
+            IOHandler.handleEmitFail(event, "Provider[${event.metadata.providerId}] is not exit")
         }
     }
 
-    suspend fun receive(event: InputEvent) {
+    suspend fun receive(event: InEvent) {
         inProviders[event.metadata.providerId]?.apply {
             if (enable) {
-                IOHandler.handleInput(event)
+                IOHandler.receive(event)
             }
         }
     }

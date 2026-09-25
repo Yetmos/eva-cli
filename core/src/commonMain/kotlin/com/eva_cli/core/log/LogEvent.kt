@@ -17,4 +17,4 @@ enum class LogLevel {
 	ERROR,
 }
 
-data class LogData(val id: Uuid = Uuid.random(), val level: LogLevel, val eventType: EventType, val title: String, val desc: String? = null)
+data class LogData(val id: Uuid = Uuid.random(), val level: LogLevel, val eventType: EventType, val name: String, val desc: String? = null)
