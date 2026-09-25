@@ -10,6 +10,7 @@ interface ContentProvider {
     var enable: Boolean
 
     fun input()
+    fun output()
 }
 
 interface ModProvider : ContentProvider {
