@@ -1,4 +1,4 @@
-package com.eva_cli.core.log
+package com.eva_cli.core.utils.log
 
 import kotlin.uuid.Uuid
 

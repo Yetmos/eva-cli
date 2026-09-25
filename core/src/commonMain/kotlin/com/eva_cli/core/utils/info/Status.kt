@@ -1,4 +1,6 @@
-package com.eva_cli.core.status
+package com.eva_cli.core.utils.info
+
+import com.eva_cli.core.status.EvaBuildInfo
 
 enum class Platform {
     MACOS,

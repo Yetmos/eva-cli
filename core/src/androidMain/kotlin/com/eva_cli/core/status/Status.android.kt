@@ -2,6 +2,8 @@ package com.eva_cli.core.status
 
 import android.content.Context
 import android.provider.Settings
+import com.eva_cli.core.utils.info.Platform
+import com.eva_cli.core.utils.info.Status
 import java.util.UUID
 
 private const val PREFERENCES_NAME = "eva_status"

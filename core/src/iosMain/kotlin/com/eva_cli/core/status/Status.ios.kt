@@ -1,5 +1,6 @@
 package com.eva_cli.core.status
 
+import com.eva_cli.core.utils.info.Platform
 import platform.Foundation.NSUUID
 import platform.Foundation.NSUserDefaults
 import platform.UIKit.UIDevice

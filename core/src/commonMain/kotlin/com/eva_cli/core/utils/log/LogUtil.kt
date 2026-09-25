@@ -1,4 +1,4 @@
-package com.eva_cli.core.log
+package com.eva_cli.core.utils.log
 
 // core 的业务打点入口，保留稳定的事件类型和名称。
 object LogUtil {

@@ -1,5 +1,6 @@
 package com.eva_cli.core.status
 
+import com.eva_cli.core.utils.info.Platform
 import java.nio.channels.FileChannel
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files

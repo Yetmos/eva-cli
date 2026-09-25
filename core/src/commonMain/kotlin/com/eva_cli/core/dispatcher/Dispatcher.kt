@@ -10,5 +10,4 @@ interface Dispatcher {
     val topic: String
     var enable: Boolean
 
-
 }

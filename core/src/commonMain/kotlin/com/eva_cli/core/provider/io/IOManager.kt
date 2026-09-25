@@ -1,7 +1,7 @@
 package com.eva_cli.core.provider.io
 
-import com.eva_cli.core.log.EventType
-import com.eva_cli.core.log.LogUtil
+import com.eva_cli.core.utils.log.EventType
+import com.eva_cli.core.utils.log.LogUtil
 import com.eva_cli.core.provider.Provider
 import kotlin.uuid.Uuid
 

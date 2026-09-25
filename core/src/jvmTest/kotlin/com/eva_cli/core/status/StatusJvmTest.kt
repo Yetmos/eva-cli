@@ -1,5 +1,8 @@
 package com.eva_cli.core.status
 
+import com.eva_cli.core.utils.info.Platform
+import com.eva_cli.core.utils.info.Status
+import com.eva_cli.core.utils.info.currentPlatform
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
