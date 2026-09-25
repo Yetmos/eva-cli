@@ -12,10 +12,6 @@ object IOHandler {
 
     // 由 IOManager 投递给指定的输出 Provider；未指定 ID 时广播，投递前实时检查 enable。
     suspend fun emit(event: OutEvent) {
-        if (event.metadata.providerId == null) {
-            handleEmitFail(event, "providerId is null")
-            return
-        }
         IOManager.emit(event)
     }
 

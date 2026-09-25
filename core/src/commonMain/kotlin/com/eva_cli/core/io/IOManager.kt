@@ -39,34 +39,41 @@ object IOManager {
         }
     }
 
+    // INFO: 对OutProvider发送消息
     suspend fun emit(event: OutEvent) {
-        outProviders[event.metadata.providerId]?.apply {
-            if (enable) {
-                if (status == IOStatus.IDLE) {
-                    emit(event)
-                } else {
-                    IOHandler.handleEmitFail(event, "Provider[${event.metadata.providerId}] is not idle, status is [${this.status.name}]")
-                }
-            } else {
-                IOHandler.handleEmitFail(event, "Provider[${event.metadata.providerId}] is not enable")
-            }
+
+        val providerId = event.metadata.providerId
+            ?: return IOHandler.handleEmitFail(event, "providerId is null")
+        val provider = outProviders[providerId]
+            ?: return IOHandler.handleEmitFail(event, "Provider[$providerId] does not exist")
+
+        if (!provider.enable) {
+            return IOHandler.handleEmitFail(event, "Provider[$providerId] is disabled")
         }
-        if (outProviders[event.metadata.providerId] == null) {
-            IOHandler.handleEmitFail(event, "Provider[${event.metadata.providerId}] is not exit")
+
+        val status = provider.status
+        if (status != IOStatus.IDLE) {
+            return IOHandler.handleEmitFail(
+                event,
+                "Provider[$providerId] is not idle, status is [${status.name}]"
+            )
         }
+
+        provider.emit(event)
     }
 
+    // INFO: 处理从InProvider接收的消息
     suspend fun receive(event: InEvent) {
-        inProviders[event.metadata.providerId]?.apply {
-            if (enable) {
-                IOHandler.receive(event)
-            } else {
-                IOHandler.handleReceiveFail(event, "Provider[${event.metadata.providerId}] is not enable")
-            }
+        val providerId = event.metadata.providerId
+            ?: return IOHandler.handleReceiveFail(event, "providerId is null")
+        val provider = inProviders[providerId]
+            ?: return IOHandler.handleReceiveFail(event, "Provider[$providerId] does not exist")
+
+        if (!provider.enable) {
+            return IOHandler.handleReceiveFail(event, "Provider[$providerId] is disabled")
         }
-        if (inProviders[event.metadata.providerId] == null) {
-            IOHandler.handleReceiveFail(event, "Provider[${event.metadata.providerId}] is not exit")
-        }
+
+        IOHandler.receive(event)
     }
 
 }
