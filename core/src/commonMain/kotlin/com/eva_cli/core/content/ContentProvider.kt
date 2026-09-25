@@ -21,8 +21,17 @@ interface ModProvider : ContentProvider {
         IMG,
         VIDEO
     }
-}
 
+    var responseType: ResponseType
+    enum class ResponseType {
+
+    }
+
+    var transportType: TransportType
+    enum class TransportType {
+
+    }
+}
 
 interface AgentProvider : ContentProvider {
     val connectType: ConnectType

@@ -6,6 +6,7 @@ import kotlin.uuid.Uuid
 enum class  EventType {
 	CUSTOM,
 	IO,
+	CONTENT,
 	RUNTIME,
 }
 
