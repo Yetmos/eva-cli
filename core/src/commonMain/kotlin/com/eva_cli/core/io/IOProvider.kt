@@ -8,7 +8,6 @@ interface IOProvider {
 	val name: String
 	val desc: String
 
-	var status: IOStatus
 	// 正在处理等Event的gid
 	var gid: Uuid?
 
@@ -22,6 +21,7 @@ interface IOProvider {
 	fun start() = Unit
 	fun stop() = Unit
 
+	var status: IOStatus
 	// Provider的状态，由各平台(Android/iOS/mac/windows/linux)处理
 	enum class IOStatus {
 		STOP,

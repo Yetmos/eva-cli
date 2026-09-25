@@ -79,7 +79,7 @@ object IOManager {
         }
 
         val status = provider.status
-        if (status != IOStatus.IDLE) {
+        if (status != IOProvider.IOStatus.IDLE) {
             return IOHandler.handleEmitFail(
                 event,
                 "Provider[$providerId] is not idle, status is [${status.name}]"
