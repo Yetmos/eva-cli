@@ -14,9 +14,11 @@ interface Dispatcher {
     val providers: LinkedHashMap<Uuid, IOProvider>
 
     // 给当前topic的Provider分配任务
-    fun dispatch(event: ProviderEvent)
+    suspend fun dispatch(event: ProviderEvent)
     // 反馈给上级topic
     var feedUp: (suspend (event: ProviderEvent) -> Unit)?
+    // 设置给下级的 feedUp ,
+    suspend fun receive(event: ProviderEvent)
     // 扫描当前topic上的所有provider
-    fun discover()
+    suspend fun discover()
 }
