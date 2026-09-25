@@ -14,7 +14,7 @@ interface ProviderEvent {
     )
 
     val payload: Payload
-    sealed interface Payload {
+     sealed interface Payload {
         data class Text(val value: String) : Payload
 
         // 二进制数据在写入和读取时都会复制，避免某个输出 Provider 修改其他  Provider 看到的字节内容
