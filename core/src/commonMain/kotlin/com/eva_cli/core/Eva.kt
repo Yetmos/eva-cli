@@ -1,7 +1,7 @@
 package com.eva_cli.core
 
 import com.eva_cli.core.runtime.Runtime
-import com.eva_cli.core.utils.info.Status
+import com.eva_cli.core.utils.info.Info
 
 // INFO: 模块统一对外暴露接口
 object Eva {
@@ -16,6 +16,6 @@ object Eva {
 	}
 
 	// INFO: 获取版本信息
-	fun info(): String = Status.sdk
+	fun info(): String = Info.sdk
 
 }
