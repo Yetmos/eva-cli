@@ -2,7 +2,7 @@ package com.eva_cli.core.dispatcher
 
 import kotlin.uuid.Uuid
 
-// INFO: 负责Provider调度
+// INFO: topic上事件的调度
 interface Dispatcher {
     val id: Uuid
     val name: String
