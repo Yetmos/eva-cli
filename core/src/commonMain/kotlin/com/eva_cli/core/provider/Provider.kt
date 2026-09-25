@@ -6,6 +6,7 @@ interface Provider {
     val id: Uuid
     val name: String
     val desc: String
+    val topic: String
     var enable: Boolean
     var status: Status
     enum class Status {
