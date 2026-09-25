@@ -1,4 +1,4 @@
-package com.eva_cli.core.content
+package com.eva_cli.core.provider.content
 
 import kotlin.uuid.Uuid
 
@@ -9,6 +9,7 @@ interface ContentProvider {
     val desc: String
     var enable: Boolean
 
+    fun input()
 }
 
 interface ModProvider : ContentProvider {
@@ -24,12 +25,18 @@ interface ModProvider : ContentProvider {
 
     var responseType: ResponseType
     enum class ResponseType {
-
+        FULL,
+        STREAM
     }
 
     var transportType: TransportType
     enum class TransportType {
-
+        HTTP,
+        SSE,
+        WEBSOCKET,
+        WEBRTC,
+        GRPC,
+        SIP
     }
 }
 
@@ -41,4 +48,3 @@ interface AgentProvider : ContentProvider {
         MUL
     }
 }
-
