@@ -15,4 +15,8 @@ interface Provider {
         IDLE,
         WORKING,
     }
+
+    suspend fun deal(event: ProviderEvent)
+    var feedUp: (suspend (event: ProviderEvent) -> Unit)?
+
 }
