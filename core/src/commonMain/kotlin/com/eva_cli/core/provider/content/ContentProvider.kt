@@ -9,8 +9,13 @@ interface ContentProvider {
     val desc: String
     var enable: Boolean
 
-    fun input()
-    fun output()
+    suspend fun input(event: ContentEvent)
+
+    /**
+     * 输出回调，由调用方设置，Provider 生成内容后在协程中调用；设为 null 可取消监听。
+     * 完整响应回调一次，流式响应按顺序对每个内容片段回调。
+     */
+    var output: (suspend (event: ContentEvent) -> Unit)?
 }
 
 interface ModProvider : ContentProvider {
