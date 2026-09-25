@@ -2,8 +2,49 @@ package com.eva_cli.core.io
 
 import com.eva_cli.core.log.EventType
 import com.eva_cli.core.log.LogUtil
+import kotlin.uuid.Uuid
 
 object IOManager {
+
+    fun register(provider: IOProvider) {
+        if (provider is InProvider) {
+            if (inProviders.values.contains(provider)) {
+                LogUtil.logI(EventType.IO, IOLogConfig.REGISTER_FAIL, "The InProvider[${provider.id}] has been registered.")
+            } else {
+                inProviders[provider.id] = provider
+                provider.start()
+            }
+        } else if (provider is OutProvider) {
+            if (outProviders.values.contains(provider)) {
+                LogUtil.logI(EventType.IO, IOLogConfig.REGISTER_FAIL, "The OutProvider[${provider.id}] has been registered.")
+            } else {
+                outProviders[provider.id] = provider
+                provider.start()
+            }
+        } else {
+            LogUtil.logI(EventType.IO, IOLogConfig.REGISTER_FAIL, "Not found the provider[${provider.id}] type")
+        }
+    }
+
+    fun unregister(provider: IOProvider) {
+        if (provider is InProvider) {
+            if (inProviders.values.contains(provider)) {
+                provider.stop()
+                inProviders.remove(provider.id)
+            } else {
+                LogUtil.logI(EventType.IO, IOLogConfig.UNREGISTER_FAIL, "The InProvider not the provider[${provider.id}].")
+            }
+        } else if (provider is OutProvider) {
+            if (outProviders.values.contains(provider)) {
+                provider.stop()
+                outProviders.remove(provider.id)
+            } else {
+                LogUtil.logI(EventType.IO, IOLogConfig.UNREGISTER_FAIL, "The OutProvider not the provider[${provider.id}].")
+            }
+        } else {
+            LogUtil.logI(EventType.IO, IOLogConfig.UNREGISTER_FAIL, "Not found the provider[${provider.id}] type")
+        }
+    }
 
     fun start() {
         for (provider in inProviders.values) {
