@@ -2,14 +2,6 @@ package com.eva_cli.core.io
 
 import kotlin.uuid.Uuid
 
-// Provider的状态，由各平台(Android/iOS/mac/windows/linux)处理
-enum class IOStatus {
-	STOP,
-	STARTING,
-	IDLE,
-	WORKING,
-}
-
 interface IOProvider {
 	// 实例的唯一标识，创建时确定且保持不变；需要跨重启复用时由实现持久化。
 	val id: Uuid
@@ -29,6 +21,14 @@ interface IOProvider {
 	var enable: Boolean
 	fun start() = Unit
 	fun stop() = Unit
+
+	// Provider的状态，由各平台(Android/iOS/mac/windows/linux)处理
+	enum class IOStatus {
+		STOP,
+		STARTING,
+		IDLE,
+		WORKING,
+	}
 }
 
 interface InProvider : IOProvider {
