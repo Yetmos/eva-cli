@@ -16,7 +16,12 @@ interface Provider {
         WORKING,
     }
 
-    suspend fun deal(event: ProviderEvent)
-    var feedUp: (suspend (event: ProviderEvent) -> Unit)?
+    suspend fun receive(event: ProviderEvent)
 
+    var emit: (suspend (event: ProviderEvent) -> Unit)?
+
+    suspend fun handle(event: ProviderEvent)
+
+    fun start() = Unit
+    fun stop() = Unit
 }

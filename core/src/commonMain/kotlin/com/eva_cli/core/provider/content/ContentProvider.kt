@@ -1,20 +1,10 @@
 package com.eva_cli.core.provider.content
 
+import com.eva_cli.core.provider.Provider
 import kotlin.uuid.Uuid
 
-interface ContentProvider {
-    // 实例的唯一标识，创建时确定且保持不变；需要跨重启复用时由实现持久化。
-    val id: Uuid
-    val name: String
-    val desc: String
-    var enable: Boolean
-
+interface ContentProvider : Provider {
     suspend fun input(event: ContentEvent)
-
-    /**
-     * 输出回调，由调用方设置，Provider 生成内容后在协程中调用；设为 null 可取消监听。
-     * 完整响应回调一次，流式响应按顺序对每个内容片段回调。
-     */
     var output: (suspend (event: ContentEvent) -> Unit)?
 }
 
