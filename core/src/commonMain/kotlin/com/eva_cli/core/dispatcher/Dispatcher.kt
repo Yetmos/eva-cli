@@ -18,13 +18,22 @@ interface Dispatcher {
     fun start() {
 
     }
+
+    fun stop() {
+
+    }
+
     // 给当前topic的Provider分配任务 或者 分发给下级topic的Dispatcher处理
     suspend fun dispatch(event: ProviderEvent)
+
     // 反馈给上级topic的Dispatcher处理
     var feedUp: (suspend (event: ProviderEvent) -> Unit)?
+
     suspend fun receive(event: ProviderEvent)
+
     // 扫描当前topic上的所有provider
     suspend fun scanProviders()
+
     // 扫描所有的下级topic和对应的Dispatcher
     suspend fun scanDispatchers()
 

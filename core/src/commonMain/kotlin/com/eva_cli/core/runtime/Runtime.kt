@@ -4,10 +4,13 @@ package com.eva_cli.core.runtime
 object Runtime {
 
     fun start() {
-        IOManager.start()
+
+        Booter.start()
     }
 
     fun stop() {
-        IOManager.stop()
+
+        Booter.stop()
     }
+
 }
