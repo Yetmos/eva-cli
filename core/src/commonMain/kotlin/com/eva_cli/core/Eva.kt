@@ -10,6 +10,7 @@ object Eva {
 	/** 启动运行时及全局 IOManager 中已注册的适配器。 */
 	fun start() {
 		Runtime.start()
+		Booter.start()
 	}
 
 	// TODO: 停止
