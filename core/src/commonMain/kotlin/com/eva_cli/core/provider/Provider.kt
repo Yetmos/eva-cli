@@ -22,6 +22,13 @@ interface Provider {
 
     suspend fun handle(event: ProviderEvent)
 
+
     fun start() = Unit
+
     fun stop() = Unit
+
+    suspend fun backup()
+
+    suspend fun restore()
+
 }
