@@ -26,6 +26,12 @@ abstract class BaseDispatcher: Dispatcher{
 
     override suspend fun stop() {
         backup()
+        for (item in providers.values) {
+            item.stop()
+        }
+        for (item in dispatchers.values) {
+            item.stop()
+        }
     }
 
     override var feedUp: (suspend (event: ProviderEvent) -> Unit)? = null
