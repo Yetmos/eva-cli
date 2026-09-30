@@ -18,6 +18,7 @@ interface Provider {
         WORKING,
     }
 
+    // INFO: 当前组件的所有任务执行记录，需要持久化
     var context: Context
     class Context {
 

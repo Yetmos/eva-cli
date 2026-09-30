@@ -12,6 +12,8 @@ interface Dispatcher {
     val desc: String
     var enable: Boolean
     val topic: String
+
+    // INFO: 当前组件的所有决策记录，需要持久化和恢复
     var context: Context
     class Context {
 
