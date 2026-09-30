@@ -9,10 +9,16 @@ object Booter {
 	    root.start()
     }
 
+	suspend fun stop() {
+		root.stop()
+	}
+
+	// INFO: 备份整个决策树
     suspend fun backup() {
 		root.backupTree()
     }
 
+	// INFO: 恢复整个决策树
     suspend fun restore() {
 		root.restore()
     }
