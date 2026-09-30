@@ -6,12 +6,17 @@ import kotlin.uuid.Uuid
 
 interface ProviderEvent {
     val id: Uuid
-    val gid: Uuid?
     val metadata: Metadata
     data class Metadata(
         var providerId: Uuid? = null,
         val createdAt: Instant = Clock.System.now(),
     )
+
+    // INFO: 记录当前事件的所有流转和处理记录
+    var context: Context
+    class Context {
+
+    }
 
     val payload: Payload
     sealed interface Payload {
