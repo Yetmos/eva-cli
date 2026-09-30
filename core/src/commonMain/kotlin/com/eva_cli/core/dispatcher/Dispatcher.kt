@@ -17,10 +17,20 @@ interface Dispatcher {
     var context: Context
 
     // INFO: timestamp-ContextItem 的上下文记录
-    data class Context(val items: LinkedHashMap<Long, ContextItem>)
-    // INFO: 事件具体的处理记录 [HANDLE]交给 provider处理, [DISPATCH] 流转给下一级dispatcher处理，[FEED_UP] 上报给上一级dispatcher处理
-    data class ContextItem(val event: ProviderEvent, val handleId: Uuid, val dispatchType: DispatchType)
-    enum class DispatchType{ HANDLE, DISPATCH, FEED_UP}
+    data class Context(val items: List<ContextItem> = listOf()) {
+        // INFO: 事件具体的处理记录
+        data class ContextItem(
+            val id: Uuid,
+            val handleTime: Long,
+            val handleId: Uuid,
+            val handleType: HandleType,
+            val event: ProviderEvent
+        ) {
+            // INFO: [HANDLE]交给 provider处理, [DISPATCH] 流转给下一级dispatcher处理，[FEED_UP] 上报给上一级dispatcher处理
+            enum class HandleType{ HANDLE, DISPATCH, FEED_UP}
+        }
+    }
+
     val providers: LinkedHashMap<Uuid, Provider>
     val dispatchers: LinkedHashMap<Uuid, Dispatcher>
 
