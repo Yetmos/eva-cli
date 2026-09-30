@@ -28,9 +28,9 @@ interface Provider {
             val event: ProviderEvent
         ) {
             // INFO:
-            // [DONE] 处理完毕，无效反馈结果
-            // [END] 终结无效事件
-            // [FEED_UP] 错误事件，反馈给Dispatcher
+            // [DONE] 处理完毕，无效反馈结果，终结事件
+            // [END]  无效事件，终结事件
+            // [BACK] 错误事件，反馈给Dispatcher
             enum class HandleType{ DONE, END, BACK, FEED_UP}
         }
     }
