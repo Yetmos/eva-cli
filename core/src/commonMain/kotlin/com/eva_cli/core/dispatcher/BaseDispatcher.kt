@@ -36,19 +36,24 @@ abstract class BaseDispatcher: Dispatcher{
 
     override var feedUp: (suspend (event: ProviderEvent) -> Unit)? = null
 
+    // TODO: 扫描 当前topic下的 Provider
     override suspend fun scanProviders() {
-        TODO("Not yet implemented")
+
     }
 
+    // TODO: 扫描下一级 topic 对应的 Dispatcher
     override suspend fun scanDispatchers() {
-        TODO("Not yet implemented")
+
     }
 
+    // TODO: 备份
     override suspend fun backup() {
         TODO("Not yet implemented")
     }
 
+    // TODO: 恢复
     override suspend fun restore() {
-        TODO("Not yet implemented")
+
     }
+
 }

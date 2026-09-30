@@ -20,8 +20,6 @@ interface Provider {
 
     var emit: (suspend (event: ProviderEvent) -> Unit)?
 
-    suspend fun handle(event: ProviderEvent)
-
 
     fun start() = Unit
 

@@ -2,7 +2,7 @@ package com.eva_cli.core.dispatcher
 
 import com.eva_cli.core.provider.ProviderEvent
 
-object RootDispatcher: BaseDispatcher() {
+class RootDispatcher: BaseDispatcher() {
 
     override val name: String = "RootDispatcher"
     override val desc: String = "RootDispatcher"
