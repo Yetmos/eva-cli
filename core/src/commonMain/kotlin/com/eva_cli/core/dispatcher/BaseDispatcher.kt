@@ -56,4 +56,26 @@ abstract class BaseDispatcher: Dispatcher{
 
     }
 
+    // INFO: 决策树备份
+    override suspend fun backupTree() {
+        backup()
+        for (item in providers.values) {
+            item.backup()
+        }
+        for (item in dispatchers.values) {
+            item.backupTree()
+        }
+    }
+
+    // INFO: 决策树恢复
+    override suspend fun restoreTree() {
+        restore()
+        for (item in providers.values) {
+            item.restore()
+        }
+        for (item in dispatchers.values) {
+            item.restoreTree()
+        }
+    }
+
 }

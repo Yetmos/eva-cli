@@ -22,6 +22,10 @@ interface Dispatcher {
     suspend fun backup()
 
     suspend fun restore()
+    // 决策树备份
+    suspend fun backupTree()
+    // 决策树恢复
+    suspend fun restoreTree()
 
     // 给当前topic的Provider分配任务 或者 分发给下级topic的Dispatcher处理
     suspend fun dispatch(event: ProviderEvent)

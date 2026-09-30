@@ -10,11 +10,11 @@ object Booter {
     }
 
     suspend fun backup() {
-
+		root.backupTree()
     }
 
     suspend fun restore() {
-
+		root.restore()
     }
 
 }
