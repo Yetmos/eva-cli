@@ -13,7 +13,7 @@ object Eva {
 		Runtime.start()
 	}
 
-	// TODO: 停止
+	// INFO: 停止
 	suspend fun stop() {
 		Runtime.stop()
 	}
