@@ -8,7 +8,7 @@ class RootDispatcher: BaseDispatcher() {
     override val desc: String = "RootDispatcher"
     override val topic: String = "/Root"
 
-    // TODO: 把消息分发给下级Dispatcher或者交给Provider处理
+    // INFO: 把消息分发给下级Dispatcher或者交给Provider处理
     override suspend fun dispatch(event: ProviderEvent) {
         TODO("Not yet implemented")
     }
