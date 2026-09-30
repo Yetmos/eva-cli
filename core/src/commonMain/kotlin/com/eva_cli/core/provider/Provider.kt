@@ -8,8 +8,6 @@ interface Provider {
     val desc: String
     val topic: String
     var enable: Boolean
-    // 最大运行的实例数
-    var max: Int
     var status: Status
     enum class Status {
         STOP,
