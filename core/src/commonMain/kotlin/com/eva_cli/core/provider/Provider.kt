@@ -31,7 +31,8 @@ interface Provider {
             // [DONE] 处理完毕，无效反馈结果，终结事件
             // [END]  无效事件，终结事件
             // [BACK] 错误事件，反馈给Dispatcher
-            enum class HandleType{ DONE, END, BACK, FEED_UP}
+            // [DO_BACK] 处理完毕，并反馈给 Dispatcher 继续分发给其他组件处理
+            enum class HandleType{ DONE, END, BACK, DO_BACK}
         }
     }
 
