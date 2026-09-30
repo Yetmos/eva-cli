@@ -12,6 +12,10 @@ interface Dispatcher {
     val desc: String
     var enable: Boolean
     val topic: String
+    var context: Context
+    class Context {
+
+    }
     val providers: LinkedHashMap<Uuid, Provider>
     val dispatchers: LinkedHashMap<Uuid, Dispatcher>
 

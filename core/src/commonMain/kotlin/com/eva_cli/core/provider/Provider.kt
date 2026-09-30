@@ -18,6 +18,11 @@ interface Provider {
         WORKING,
     }
 
+    var context: Context
+    class Context {
+
+    }
+
     suspend fun receive(event: ProviderEvent)
 
     var emit: (suspend (event: ProviderEvent) -> Unit)?
