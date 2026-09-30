@@ -11,8 +11,6 @@ interface Dispatcher {
     val name: String
     val desc: String
     var enable: Boolean
-    // 最大运行的实例数
-    var max: Int
     val topic: String
     val providers: LinkedHashMap<Uuid, Provider>
     val dispatchers: LinkedHashMap<Uuid, Dispatcher>
