@@ -7,6 +7,7 @@ import kotlin.uuid.Uuid
 abstract class BaseDispatcher: Dispatcher{
     override val id: Uuid = Uuid.random()
     override var enable: Boolean = true
+    override var context: Dispatcher.Context = Dispatcher.Context()
     override val providers: LinkedHashMap<Uuid, Provider> = linkedMapOf()
     override val dispatchers: LinkedHashMap<Uuid, Dispatcher> = linkedMapOf()
 
