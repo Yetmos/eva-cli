@@ -15,9 +15,12 @@ interface Dispatcher {
 
     // INFO: 当前组件的所有决策记录，需要持久化和恢复
     var context: Context
-    class Context {
 
-    }
+    // INFO: timestamp-ContextItem 的上下文记录
+    data class Context(val items: LinkedHashMap<Long, ContextItem>)
+    // INFO: 事件具体的处理记录 [HANDLE]交给 provider处理, [DISPATCH] 流转给下一级dispatcher处理，[FEED_UP] 上报给上一级dispatcher处理
+    data class ContextItem(val event: ProviderEvent, val handleId: Uuid, val dispatchType: DispatchType)
+    enum class DispatchType{ HANDLE, DISPATCH, FEED_UP}
     val providers: LinkedHashMap<Uuid, Provider>
     val dispatchers: LinkedHashMap<Uuid, Dispatcher>
 
