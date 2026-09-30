@@ -9,12 +9,12 @@ object Eva {
 
 	// INFO: 启动
 	/** 启动运行时及全局 IOManager 中已注册的适配器。 */
-	fun start() {
+	suspend fun start() {
 		Runtime.start()
 	}
 
 	// TODO: 停止
-	fun stop() {
+	suspend fun stop() {
 		Runtime.stop()
 	}
 
