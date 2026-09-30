@@ -1,11 +1,8 @@
 package com.eva_cli.core.provider.io
 
 import com.eva_cli.core.provider.Provider
-import kotlin.uuid.Uuid
 
-interface IOProvider : Provider{
-
-}
+interface IOProvider : Provider
 
 interface InProvider : IOProvider {
 	suspend fun receive(event: InEvent) {
