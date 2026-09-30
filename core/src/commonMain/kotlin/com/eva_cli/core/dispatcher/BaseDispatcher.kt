@@ -71,12 +71,12 @@ abstract class BaseDispatcher: Dispatcher{
 
     // INFO: 备份
     override suspend fun backup() {
-        TODO("Not yet implemented")
+        // TODO: 对当前Provider的context进行备份
     }
 
     // INFO: 恢复
     override suspend fun restore() {
-        TODO("Not yet implemented")
+        // TODO: 对当前Provider的context进行备恢复
     }
 
 }
