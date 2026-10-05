@@ -25,6 +25,7 @@ interface Provider {
             val handleTime: Long,
             val handleId: Uuid,
             val handleType: HandleType,
+            val handleMsg: String,
             val event: ProviderEvent
         ) {
             // INFO:
