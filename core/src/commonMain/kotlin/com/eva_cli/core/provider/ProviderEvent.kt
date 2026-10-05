@@ -1,5 +1,6 @@
 package com.eva_cli.core.provider
 
+import com.eva_cli.core.context.Context
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -14,17 +15,6 @@ interface ProviderEvent {
 
     /** 当前事件经过各组件时留下的流转和处理记录。 */
     var context: Context
-
-    /**
-     * 仅保存当前事件的记录，[items] 按追加顺序排列。
-     *
-     * 可通过 `context = context.copy(items = context.items + record)` 追加记录。
-     * [List] 只提供只读访问，调用方应避免保留并修改其可变底层集合；
-     * `copy` 追加也不保证线程安全，同一事件的更新需要串行执行或由调用方同步。
-     */
-    data class Context(
-        val items: List<EventRecord> = emptyList(),
-    )
 
     val payload: Payload
     sealed interface Payload {

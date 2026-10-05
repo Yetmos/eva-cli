@@ -1,5 +1,6 @@
 package com.eva_cli.core.provider
 
+import com.eva_cli.core.context.Context
 import kotlin.uuid.Uuid
 
 interface Provider {
@@ -16,11 +17,8 @@ interface Provider {
         WORKING,
     }
 
-    // INFO: 当前组件的所有任务执行记录，需要持久化
+    /** 当前 Provider 对不同事件的处理记录，需要持久化。 */
     var context: Context
-
-    /** 当前 Provider 对不同事件的处理记录，与事件履历共用同一条 [EventRecord]。 */
-    data class Context(val items: List<EventRecord> = emptyList())
 
     suspend fun receive(event: ProviderEvent)
 

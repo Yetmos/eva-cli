@@ -1,5 +1,6 @@
 package com.eva_cli.core.dispatcher
 
+import com.eva_cli.core.context.Context
 import com.eva_cli.core.provider.Provider
 import com.eva_cli.core.provider.ProviderEvent
 import kotlin.uuid.Uuid
@@ -7,7 +8,7 @@ import kotlin.uuid.Uuid
 abstract class BaseDispatcher: Dispatcher{
     override val id: Uuid = Uuid.random()
     override var enable: Boolean = true
-    override var context: Dispatcher.Context = Dispatcher.Context()
+    override var context: Context = Context()
     override val providers: LinkedHashMap<Uuid, Provider> = linkedMapOf()
     override val dispatchers: LinkedHashMap<Uuid, Dispatcher> = linkedMapOf()
 

@@ -1,6 +1,6 @@
 package com.eva_cli.core.dispatcher
 
-import com.eva_cli.core.provider.EventRecord
+import com.eva_cli.core.context.Context
 import com.eva_cli.core.provider.Provider
 import com.eva_cli.core.provider.ProviderEvent
 import kotlin.uuid.Uuid
@@ -14,11 +14,8 @@ interface Dispatcher {
     var enable: Boolean
     val topic: String
 
-    // INFO: 当前组件的所有决策记录，需要持久化和恢复
+    /** 当前 Dispatcher 对不同事件的决策记录，需要持久化和恢复。 */
     var context: Context
-
-    /** 当前 Dispatcher 对不同事件的决策记录，与事件履历共用同一条 [EventRecord]。 */
-    data class Context(val items: List<EventRecord> = emptyList())
 
     val providers: LinkedHashMap<Uuid, Provider>
     val dispatchers: LinkedHashMap<Uuid, Dispatcher>
