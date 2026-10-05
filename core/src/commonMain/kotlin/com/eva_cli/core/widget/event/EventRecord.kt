@@ -1,4 +1,4 @@
-package com.eva_cli.core.context
+package com.eva_cli.core.widget.event
 
 import kotlin.time.Clock
 import kotlin.time.Instant

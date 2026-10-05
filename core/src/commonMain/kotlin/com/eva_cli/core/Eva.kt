@@ -1,6 +1,5 @@
 package com.eva_cli.core
 
-import com.eva_cli.core.dispatcher.Booter
 import com.eva_cli.core.runtime.Runtime
 import com.eva_cli.core.utils.info.Info
 

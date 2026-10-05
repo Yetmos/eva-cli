@@ -1,6 +1,7 @@
-package com.eva_cli.core.provider
+package com.eva_cli.core.widget.provider
 
-import com.eva_cli.core.context.EventRecord
+import com.eva_cli.core.widget.event.Event
+import com.eva_cli.core.widget.event.EventRecord
 import kotlin.uuid.Uuid
 
 interface Provider {
@@ -23,9 +24,9 @@ interface Provider {
      */
     var records: List<EventRecord>
 
-    suspend fun receive(event: ProviderEvent)
+    suspend fun receive(event: Event)
 
-    var emit: (suspend (event: ProviderEvent) -> Unit)?
+    var emit: (suspend (event: Event) -> Unit)?
 
     fun start() = Unit
 

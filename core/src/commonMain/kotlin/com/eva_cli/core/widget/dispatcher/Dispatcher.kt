@@ -1,8 +1,8 @@
-package com.eva_cli.core.dispatcher
+package com.eva_cli.core.widget.dispatcher
 
-import com.eva_cli.core.context.EventRecord
-import com.eva_cli.core.provider.Provider
-import com.eva_cli.core.provider.ProviderEvent
+import com.eva_cli.core.widget.event.EventRecord
+import com.eva_cli.core.widget.provider.Provider
+import com.eva_cli.core.widget.event.Event
 import kotlin.uuid.Uuid
 
 // INFO: topic上事件的调度
@@ -34,12 +34,12 @@ interface Dispatcher {
     suspend fun restoreTree()
 
     // 给当前topic的Provider分配任务 或者 分发给下级topic的Dispatcher处理
-    suspend fun dispatch(event: ProviderEvent)
+    suspend fun dispatch(event: Event)
 
     // 反馈给上级topic的Dispatcher处理
-    var feedUp: (suspend (event: ProviderEvent) -> Unit)?
+    var feedUp: (suspend (event: Event) -> Unit)?
 
-    suspend fun receive(event: ProviderEvent)
+    suspend fun receive(event: Event)
 
     // 扫描当前topic上的所有provider
     suspend fun scanProviders()

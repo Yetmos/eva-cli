@@ -1,7 +1,6 @@
-package com.eva_cli.core.provider.content
+package com.eva_cli.core.widget.provider.content
 
-import com.eva_cli.core.provider.Provider
-import kotlin.uuid.Uuid
+import com.eva_cli.core.widget.provider.Provider
 
 interface ContentProvider : Provider {
     suspend fun input(event: ContentEvent)

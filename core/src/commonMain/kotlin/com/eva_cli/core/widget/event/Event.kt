@@ -1,11 +1,10 @@
-package com.eva_cli.core.provider
+package com.eva_cli.core.widget.event
 
-import com.eva_cli.core.context.EventRecord
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-interface ProviderEvent {
+interface Event {
     val id: Uuid
     val metadata: Metadata
     data class Metadata(

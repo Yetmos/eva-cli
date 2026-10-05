@@ -1,8 +1,8 @@
-package com.eva_cli.core.dispatcher
+package com.eva_cli.core.widget.dispatcher
 
-import com.eva_cli.core.context.EventRecord
-import com.eva_cli.core.provider.Provider
-import com.eva_cli.core.provider.ProviderEvent
+import com.eva_cli.core.widget.event.EventRecord
+import com.eva_cli.core.widget.provider.Provider
+import com.eva_cli.core.widget.event.Event
 import kotlin.uuid.Uuid
 
 abstract class BaseDispatcher: Dispatcher{
@@ -36,7 +36,7 @@ abstract class BaseDispatcher: Dispatcher{
         }
     }
 
-    override var feedUp: (suspend (event: ProviderEvent) -> Unit)? = null
+    override var feedUp: (suspend (event: Event) -> Unit)? = null
 
     // INFO: 决策树备份
     override suspend fun backupTree() {
