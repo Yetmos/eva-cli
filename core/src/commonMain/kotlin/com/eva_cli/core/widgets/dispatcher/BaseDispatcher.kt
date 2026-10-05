@@ -60,12 +60,12 @@ abstract class BaseDispatcher: Dispatcher{
         }
     }
 
-    // INFO: 扫描 当前topic下的 Provider
+    // INFO: 询当前 topic 的 Provider
     override suspend fun scanProviders() {
         TODO("Not yet implemented")
     }
 
-    // INFO: 扫描下一级 topic 对应的 Dispatcher
+    // INFO: 查询直接子 topic 的 Dispatcher
     override suspend fun scanDispatchers() {
         TODO("Not yet implemented")
     }
