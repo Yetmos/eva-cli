@@ -18,7 +18,7 @@ data class EventRecord(
     val action: Action,
 )
 
-/** 组件的轻量标识，不持有 Provider 或 Dispatcher 实例。 */
+// 组件标识：Provider 或 Dispatcher
 data class ComponentRef(
     val id: Uuid,
     val kind: Kind,
@@ -29,7 +29,7 @@ data class ComponentRef(
     }
 }
 
-/** 将调度决策和处理结果分开，避免处理记录携带无意义的接收目标。 */
+// 调度决策/处理结果
 sealed interface Action {
     /**
      * 调度决策仅表示准备将事件交给 [target]，不代表已经送达或处理成功。
@@ -41,7 +41,7 @@ sealed interface Action {
         val reason: String? = null,
     ) : Action
 
-    /** 组件处理事件后的结果，[detail] 用于补充结果说明或错误信息。 */
+    // 组件处理事件后的结果，[detail] 用于补充结果说明或错误信息。
     data class Handle(
         val result: Result,
         val detail: String? = null,
@@ -52,10 +52,8 @@ sealed interface Action {
 enum class DispatchType {
     // 交给 Provider 处理。
     HANDLE,
-
     // 流转给下一级 Dispatcher 处理。
     DISPATCH,
-
     // 上报给上一级 Dispatcher 处理。
     FEED_UP,
 }
@@ -64,13 +62,10 @@ enum class DispatchType {
 enum class Result {
     // 处理完成，无需反馈结果，终结事件。
     DONE,
-
     // 无效事件，终结事件。
     END,
-
     // 处理出错，反馈给 Dispatcher。
     BACK,
-
     // 处理完成，返回 Dispatcher 继续分发给其他组件。
     DO_BACK,
 }

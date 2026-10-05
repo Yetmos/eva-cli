@@ -17,13 +17,11 @@ interface Provider {
         WORKING,
     }
 
-    /** 当前 Provider 对不同事件的处理记录，需要持久化。 */
     var context: Context
 
     suspend fun receive(event: ProviderEvent)
 
     var emit: (suspend (event: ProviderEvent) -> Unit)?
-
 
     fun start() = Unit
 

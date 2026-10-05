@@ -13,10 +13,7 @@ interface Dispatcher {
     val desc: String
     var enable: Boolean
     val topic: String
-
-    /** 当前 Dispatcher 对不同事件的决策记录，需要持久化和恢复。 */
     var context: Context
-
     val providers: LinkedHashMap<Uuid, Provider>
     val dispatchers: LinkedHashMap<Uuid, Dispatcher>
 
