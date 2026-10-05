@@ -4,6 +4,7 @@ package com.eva_cli.core.runtime
 object Runtime {
 
     suspend fun start() {
+        Configure.start()
         Booter.start()
     }
 
