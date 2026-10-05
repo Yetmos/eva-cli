@@ -1,7 +1,7 @@
-package com.eva_cli.core.widget.provider.content
+package com.eva_cli.core.widgets.provider.content
 
-import com.eva_cli.core.widget.event.EventRecord
-import com.eva_cli.core.widget.event.Event
+import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.event.Event
 import kotlin.uuid.Uuid
 
 data class ContentEvent(

@@ -1,6 +1,6 @@
-package com.eva_cli.core.widget.dispatcher
+package com.eva_cli.core.runtime
 
-import com.eva_cli.core.widget.impl.dispatchers.RootDispatcher
+import com.eva_cli.core.widgets.impl.dispatchers.RootDispatcher
 
 // INFO: 该组件只负责启动 RootDispatcher, RootDispatcher负责启动Dispatcher树，不具备任何事件调度能力
 object Booter {

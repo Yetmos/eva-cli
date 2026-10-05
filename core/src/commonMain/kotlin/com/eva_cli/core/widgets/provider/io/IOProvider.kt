@@ -1,6 +1,6 @@
-package com.eva_cli.core.widget.provider.io
+package com.eva_cli.core.widgets.provider.io
 
-import com.eva_cli.core.widget.provider.Provider
+import com.eva_cli.core.widgets.provider.Provider
 
 interface IOProvider : Provider
 

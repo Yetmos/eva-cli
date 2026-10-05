@@ -1,8 +1,8 @@
-package com.eva_cli.core.widget.dispatcher
+package com.eva_cli.core.widgets.dispatcher
 
-import com.eva_cli.core.widget.event.EventRecord
-import com.eva_cli.core.widget.provider.Provider
-import com.eva_cli.core.widget.event.Event
+import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.provider.Provider
+import com.eva_cli.core.widgets.event.Event
 import kotlin.uuid.Uuid
 
 // INFO: topic上事件的调度

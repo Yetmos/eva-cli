@@ -1,6 +1,6 @@
-package com.eva_cli.core.widget.provider.content
+package com.eva_cli.core.widgets.provider.content
 
-import com.eva_cli.core.widget.provider.Provider
+import com.eva_cli.core.widgets.provider.Provider
 
 interface ContentProvider : Provider {
     suspend fun input(event: ContentEvent)

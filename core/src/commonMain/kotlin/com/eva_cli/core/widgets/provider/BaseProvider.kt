@@ -1,4 +1,4 @@
-package com.eva_cli.core.widget.provider
+package com.eva_cli.core.widgets.provider
 
 abstract class BaseProvider: Provider {
 }

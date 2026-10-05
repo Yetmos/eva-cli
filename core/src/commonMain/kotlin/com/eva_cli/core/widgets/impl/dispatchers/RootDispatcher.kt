@@ -1,7 +1,7 @@
-package com.eva_cli.core.widget.impl.dispatchers
+package com.eva_cli.core.widgets.impl.dispatchers
 
-import com.eva_cli.core.widget.dispatcher.BaseDispatcher
-import com.eva_cli.core.widget.event.Event
+import com.eva_cli.core.widgets.dispatcher.BaseDispatcher
+import com.eva_cli.core.widgets.event.Event
 
 class RootDispatcher: BaseDispatcher() {
 
