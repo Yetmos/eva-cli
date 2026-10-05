@@ -1,6 +1,5 @@
 package com.eva_cli.core.provider
 
-import com.eva_cli.core.dispatcher.Dispatcher
 import kotlin.uuid.Uuid
 
 interface Provider {
@@ -19,23 +18,9 @@ interface Provider {
 
     // INFO: 当前组件的所有任务执行记录，需要持久化
     var context: Context
-    data class Context(val items: List<Dispatcher.Context.ContextItem> = listOf()) {
-        data class ContextItem(
-            val id: Uuid,
-            val handleTime: Long,
-            val handleId: Uuid,
-            val handleType: HandleType,
-            val handleMsg: String,
-            val event: ProviderEvent
-        ) {
-            // INFO:
-            // [DONE] 处理完毕，无效反馈结果，终结事件
-            // [END]  无效事件，终结事件
-            // [BACK] 错误事件，反馈给Dispatcher
-            // [DO_BACK] 处理完毕，并反馈给 Dispatcher 继续分发给其他组件处理
-            enum class HandleType{ DONE, END, BACK, DO_BACK}
-        }
-    }
+
+    /** 当前 Provider 对不同事件的处理记录，与事件履历共用同一条 [EventRecord]。 */
+    data class Context(val items: List<EventRecord> = emptyList())
 
     suspend fun receive(event: ProviderEvent)
 

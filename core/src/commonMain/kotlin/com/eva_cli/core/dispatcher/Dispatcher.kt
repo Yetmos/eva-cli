@@ -1,5 +1,6 @@
 package com.eva_cli.core.dispatcher
 
+import com.eva_cli.core.provider.EventRecord
 import com.eva_cli.core.provider.Provider
 import com.eva_cli.core.provider.ProviderEvent
 import kotlin.uuid.Uuid
@@ -15,23 +16,9 @@ interface Dispatcher {
 
     // INFO: 当前组件的所有决策记录，需要持久化和恢复
     var context: Context
-    data class Context(val items: List<ContextItem> = listOf()) {
-        // INFO: 事件具体的处理记录
-        data class ContextItem(
-            val id: Uuid,
-            val handleTime: Long,
-            val handleId: Uuid,
-            val handleType: HandleType,
-            val handleMsg: String,
-            val event: ProviderEvent
-        ) {
-            // INFO:
-            // [HANDLE]交给 provider处理,
-            // [DISPATCH] 流转给下一级dispatcher处理
-            // [FEED_UP] 上报给上一级dispatcher处理
-            enum class HandleType{ HANDLE, DISPATCH, FEED_UP}
-        }
-    }
+
+    /** 当前 Dispatcher 对不同事件的决策记录，与事件履历共用同一条 [EventRecord]。 */
+    data class Context(val items: List<EventRecord> = emptyList())
 
     val providers: LinkedHashMap<Uuid, Provider>
     val dispatchers: LinkedHashMap<Uuid, Dispatcher>
