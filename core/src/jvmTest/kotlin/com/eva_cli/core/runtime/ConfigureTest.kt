@@ -15,7 +15,7 @@ class ConfigureTest {
 
         Configure.start()
 
-        val expectedDirectories = setOf("Plugins", "Logs", "Datas", "Events")
+        val expectedDirectories = setOf("Plugins", "Logs", "Data", "Events")
         assertEquals(expectedDirectories, runtimeRoot.list()?.toSet())
         for (name in expectedDirectories) {
             assertTrue(runtimeRoot.resolve(name).isDirectory, "$name should be a directory")
@@ -25,7 +25,7 @@ class ConfigureTest {
     @Test
     fun repeatedChecksPreserveExistingDataAndRestoreMissingDirectories() = withWorkingDirectory { root ->
         Configure.checkDic()
-        val record = root.resolve("Datas/record.txt")
+        val record = root.resolve("Data/record.txt")
         record.writeText("existing data")
         assertTrue(root.resolve("Events").delete())
 

@@ -7,7 +7,7 @@ import java.io.File
 private var applicationRootPath: String? = null
 
 /** 在 Application.onCreate 中调用，为运行目录提供应用私有存储路径。 */
-fun FileUtils.Companion.initialize(context: Context) {
+fun FileUtils.initialize(context: Context) {
     applicationRootPath = context.applicationContext.filesDir.absolutePath
 }
 
