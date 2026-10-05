@@ -1,6 +1,6 @@
 package com.eva_cli.core.provider
 
-import com.eva_cli.core.context.Context
+import com.eva_cli.core.context.EventRecord
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -13,8 +13,11 @@ interface ProviderEvent {
         val createdAt: Instant = Clock.System.now(),
     )
 
-    /** 当前事件经过各组件时留下的流转和处理记录。 */
-    var context: Context
+    /**
+     * 当前事件的流转和处理记录，按追加顺序排列；调用方保证 eventId 指向当前事件。
+     * [List] 只读接口不保证深度不可变，应避免修改底层集合，并发更新需同步。
+     */
+    var records: List<EventRecord>
 
     val payload: Payload
     sealed interface Payload {

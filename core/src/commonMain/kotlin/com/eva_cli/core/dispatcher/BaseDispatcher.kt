@@ -1,6 +1,6 @@
 package com.eva_cli.core.dispatcher
 
-import com.eva_cli.core.context.Context
+import com.eva_cli.core.context.EventRecord
 import com.eva_cli.core.provider.Provider
 import com.eva_cli.core.provider.ProviderEvent
 import kotlin.uuid.Uuid
@@ -8,7 +8,7 @@ import kotlin.uuid.Uuid
 abstract class BaseDispatcher: Dispatcher{
     override val id: Uuid = Uuid.random()
     override var enable: Boolean = true
-    override var context: Context = Context()
+    override var records: List<EventRecord> = emptyList()
     override val providers: LinkedHashMap<Uuid, Provider> = linkedMapOf()
     override val dispatchers: LinkedHashMap<Uuid, Dispatcher> = linkedMapOf()
 
@@ -72,12 +72,12 @@ abstract class BaseDispatcher: Dispatcher{
 
     // INFO: 备份
     override suspend fun backup() {
-        // TODO: 对当前Provider的context进行备份
+        // TODO: 备份当前 Dispatcher 的 records
     }
 
     // INFO: 恢复
     override suspend fun restore() {
-        // TODO: 对当前Provider的context进恢复
+        // TODO: 恢复当前 Dispatcher 的 records
     }
 
 }

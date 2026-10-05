@@ -1,6 +1,6 @@
 package com.eva_cli.core.dispatcher
 
-import com.eva_cli.core.context.Context
+import com.eva_cli.core.context.EventRecord
 import com.eva_cli.core.provider.Provider
 import com.eva_cli.core.provider.ProviderEvent
 import kotlin.uuid.Uuid
@@ -13,7 +13,11 @@ interface Dispatcher {
     val desc: String
     var enable: Boolean
     val topic: String
-    var context: Context
+    /**
+     * 当前 Dispatcher 的决策记录，按追加顺序排列；调用方保证 actor 指向当前组件。
+     * [List] 只读接口不保证深度不可变，应避免修改底层集合，并发更新需同步。
+     */
+    var records: List<EventRecord>
     val providers: LinkedHashMap<Uuid, Provider>
     val dispatchers: LinkedHashMap<Uuid, Dispatcher>
 

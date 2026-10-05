@@ -1,6 +1,6 @@
 package com.eva_cli.core.provider.io
 
-import com.eva_cli.core.context.Context
+import com.eva_cli.core.context.EventRecord
 import com.eva_cli.core.provider.ProviderEvent
 import kotlin.uuid.Uuid
 
@@ -12,7 +12,7 @@ data class InEvent(
     override val id: Uuid = Uuid.random(),
     override val payload: ProviderEvent.Payload,
     override val metadata: ProviderEvent.Metadata = ProviderEvent.Metadata(),
-    override var context: Context = Context(),
+    override var records: List<EventRecord> = emptyList(),
 ) : IOEvent
 
 // 投递给 [OutProvider] 的事件。
@@ -20,5 +20,5 @@ data class OutEvent(
     override val id: Uuid = Uuid.random(),
     override val payload: ProviderEvent.Payload,
     override val metadata: ProviderEvent.Metadata = ProviderEvent.Metadata(),
-    override var context: Context = Context(),
+    override var records: List<EventRecord> = emptyList(),
 ) : IOEvent
