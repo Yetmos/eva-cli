@@ -1,4 +1,4 @@
-package com.eva_cli.core.widgets.impl.dispatchers
+package com.eva_cli.core.impl.dispatchers
 
 import com.eva_cli.core.widgets.dispatcher.BaseDispatcher
 import com.eva_cli.core.widgets.event.Event
