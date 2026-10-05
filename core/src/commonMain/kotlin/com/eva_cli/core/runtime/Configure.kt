@@ -7,6 +7,11 @@ import com.eva_cli.core.utils.file.FileUtils
  */
 object Configure {
 
+    const val PLUGINS_DIR = "Plugins"
+    const val LOGS_DIR = "Logs"
+    const val DATA_DIR = "Data"
+    const val EVENTS_DIR = "Events"
+
     fun start() {
         checkDic()
     }
@@ -22,7 +27,7 @@ object Configure {
     fun checkDic() {
         val files = FileUtils()
         val rootPath = files.rootPath()
-        for (directory in listOf("Plugins", "Logs", "Datas", "Events")) {
+        for (directory in listOf(PLUGINS_DIR, LOGS_DIR, DATA_DIR, EVENTS_DIR)) {
             files.createDirectories("$rootPath/$directory")
         }
     }
