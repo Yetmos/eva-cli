@@ -11,6 +11,7 @@ data class InEvent(
     override val id: Uuid = Uuid.random(),
     override val payload: ProviderEvent.Payload,
     override val metadata: ProviderEvent.Metadata = ProviderEvent.Metadata(),
+    override var context: ProviderEvent.Context,
 ) : IOEvent
 
 // 投递给 [OutProvider] 的事件。
@@ -18,4 +19,5 @@ data class OutEvent(
     override val id: Uuid = Uuid.random(),
     override val payload: ProviderEvent.Payload,
     override val metadata: ProviderEvent.Metadata = ProviderEvent.Metadata(),
+    override var context: ProviderEvent.Context,
 ) : IOEvent
