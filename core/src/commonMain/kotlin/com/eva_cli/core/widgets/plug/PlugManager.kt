@@ -2,7 +2,7 @@ package com.eva_cli.core.widgets.plug
 
 object PlugManager {
 
-    fun installPlugin(plugin: Plugin) {
+    fun installPlugin(plugin: PluginSource) {
 
     }
 
