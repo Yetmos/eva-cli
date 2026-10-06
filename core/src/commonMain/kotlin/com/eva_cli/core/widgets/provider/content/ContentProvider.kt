@@ -1,14 +1,14 @@
 package com.eva_cli.core.widgets.provider.content
 
-import com.eva_cli.core.widgets.provider.Provider
+import com.eva_cli.core.widgets.provider.WidgetProvider
 
-interface ContentProvider : Provider {
-    suspend fun input(event: ContentEvent)
-    var output: (suspend (event: ContentEvent) -> Unit)?
+abstract class ContentProvider : WidgetProvider() {
+    abstract suspend fun input(event: ContentEvent)
+    abstract var output: (suspend (event: ContentEvent) -> Unit)?
 }
 
-interface ModProvider : ContentProvider {
-    val modType: ModType
+abstract class ModProvider : ContentProvider() {
+    abstract val modType: ModType
     enum class ModType {
         MUL,
         TEXT,
@@ -18,13 +18,13 @@ interface ModProvider : ContentProvider {
         VIDEO
     }
 
-    var responseType: ResponseType
+    abstract var responseType: ResponseType
     enum class ResponseType {
         FULL,
         STREAM
     }
 
-    var transportType: TransportType
+    abstract var transportType: TransportType
     enum class TransportType {
         HTTP,
         SSE,
@@ -35,8 +35,8 @@ interface ModProvider : ContentProvider {
     }
 }
 
-interface AgentProvider : ContentProvider {
-    val connectType: ConnectType
+abstract class AgentProvider : ContentProvider() {
+    abstract val connectType: ConnectType
     enum class ConnectType {
         CLI,
         MCP,

@@ -1,18 +1,17 @@
 package com.eva_cli.core.widgets.provider.io
 
-import com.eva_cli.core.widgets.provider.Provider
+import com.eva_cli.core.widgets.provider.WidgetProvider
 
-interface IOProvider : Provider
+abstract class IOProvider : WidgetProvider()
 
-interface InProvider : IOProvider {
-	suspend fun receive(event: InEvent) {
+abstract class InProvider : IOProvider() {
+	open suspend fun receive(event: InEvent) {
 		if (!enable) return
 		event.metadata.providerId = id
 	}
 }
 
-interface OutProvider : IOProvider {
-	suspend fun emit(event: OutEvent)
+abstract class OutProvider : IOProvider() {
+	abstract suspend fun emit(event: OutEvent)
 }
-
 
