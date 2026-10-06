@@ -25,7 +25,7 @@ data class PluginManifest(
     val source: Source? = null,
     val builtWith: BuiltWith? = null,
 ) {
-    /** 未声明的平台为 null，表示该清单未提供对应平台的接入信息。 */
+    // 未声明的平台为 null，表示该清单未提供对应平台的接入信息。
     @Serializable
     data class Platforms(
         val jvm: Jvm? = null,
@@ -33,7 +33,7 @@ data class PluginManifest(
         val ios: Ios? = null,
     )
 
-    /** JVM 产物及公开无参入口类；[dependencies] 为插件私有依赖所在目录。 */
+    // JVM 产物及公开无参入口类；[dependencies] 为插件私有依赖所在目录。
     @Serializable
     data class Jvm(
         val artifact: String,
@@ -42,7 +42,7 @@ data class PluginManifest(
         val minJavaVersion: Int? = null,
     )
 
-    /** Android DEX 产物及公开无参入口类。 */
+    // Android DEX 产物及公开无参入口类。
     @Serializable
     data class Android(
         val artifact: String,
@@ -50,7 +50,7 @@ data class PluginManifest(
         val minSdk: Int? = null,
     )
 
-    /** iOS 构建期接入信息；[factory] 用于生成静态注册代码。 */
+    // iOS 构建期接入信息；[factory] 用于生成静态注册代码。
     @Serializable
     data class Ios(
         val repository: String,
@@ -58,7 +58,7 @@ data class PluginManifest(
         val factory: String,
     )
 
-    /** 包内源码工程的位置及模块坐标，默认使用包根目录中的 Gradle 根项目。 */
+    // 包内源码工程的位置及模块坐标，默认使用包根目录中的 Gradle 根项目。
     @Serializable
     data class Source(
         val coordinate: String,
@@ -66,7 +66,7 @@ data class PluginManifest(
         val gradleProject: String = ":",
     )
 
-    /** 发布该插件时使用的工具链版本。 */
+    // 发布该插件时使用的工具链版本。
     @Serializable
     data class BuiltWith(
         val kotlin: String,
