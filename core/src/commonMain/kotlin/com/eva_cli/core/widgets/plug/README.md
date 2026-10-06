@@ -151,6 +151,72 @@ iOS 的 `repository`、`coordinate`、`factory` 均必填。
 该模型仅描述清单并支持 JSON 编解码，不包含文件读取或插件加载。
 安装流程仍需检查至少存在一个可用平台、包格式及 API 兼容性、字段取值和包内文件的有效性。
 
+## 插件组件继承约定
+
+插件中的具体组件应继承面向插件开放的 `Widget` 基类：Dispatcher 继承
+`WidgetDispatcher`，Provider 继承 `WidgetProvider`。这两个类是插件扩展入口；
+`BaseDispatcher` 和 `BaseProvider` 是宿主侧的基础实现，插件不应直接依赖它们的内部实现。
+
+一个插件可以包含多个 Dispatcher 或 Provider，但每个具体组件只承担一种组件职责。
+不要让同一个类同时继承 `WidgetDispatcher` 和 `WidgetProvider`；需要同时提供两种能力时，
+应注册两个独立的组件实例，由插件入口负责创建和注册它们。
+
+Dispatcher 示例：
+
+```kotlin
+import com.eva_cli.core.widgets.dispatcher.WidgetDispatcher
+import com.eva_cli.core.widgets.event.Event
+
+class ChatDispatcher : WidgetDispatcher() {
+    override val name = "Chat Dispatcher"
+    override val desc = "Dispatches chat events"
+    override val topic = "/Chat"
+
+    override suspend fun dispatch(event: Event) {
+        // 将事件交给当前 topic 下的 Provider 或子 Dispatcher。
+    }
+
+    override suspend fun receive(event: Event) {
+        // 处理 Provider 或子 Dispatcher 返回的事件。
+    }
+}
+```
+
+Provider 示例：
+
+```kotlin
+import com.eva_cli.core.widgets.event.Event
+import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.provider.Provider
+import com.eva_cli.core.widgets.provider.WidgetProvider
+import kotlin.uuid.Uuid
+
+class ChatProvider : WidgetProvider() {
+    override val id = Uuid.random()
+    override val name = "Chat Provider"
+    override val desc = "Handles chat events"
+    override val topic = "/Chat"
+    override var enable = true
+    override var status = Provider.Status.IDLE
+    override var records: List<EventRecord> = emptyList()
+    override var emit: (suspend (event: Event) -> Unit)? = null
+
+    override suspend fun receive(event: Event) {
+        // 处理 Dispatcher 投递的事件。
+    }
+}
+```
+
+`WidgetProvider` 已经包含 `Provider` 的宿主生命周期契约，具体 Provider 仍需实现自己的
+元数据、事件处理和输出回调。若后续提供输入、输出或其他专用 Provider 基类，具体实现应
+继承职责最接近的一个基类，不需要重复继承 `WidgetProvider`。
+
+插件入口负责把创建出的组件交给宿主注册。注册 API 由宿主 SDK 提供，入口类名必须与
+`plugin.json` 中对应平台的 `entryClass` 或 `factory` 一致。
+
+当前仓库中的扫描、备份和恢复流程仍在实现中；上述继承约定定义的是插件 API 边界，不能替代
+宿主的组件注册和运行时调度实现。
+
 ## 平台接入规则
 
 - PC：解压后使用 URLClassLoader 加载 `prebuilt/jvm/plugin.jar` 和 `prebuilt/jvm/lib/` 中的私有依赖，
