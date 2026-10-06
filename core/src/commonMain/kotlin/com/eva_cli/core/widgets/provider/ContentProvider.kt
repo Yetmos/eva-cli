@@ -1,6 +1,6 @@
-package com.eva_cli.core.widgets.provider.content
+package com.eva_cli.core.widgets.provider
 
-import com.eva_cli.core.widgets.provider.WidgetProvider
+import com.eva_cli.core.widgets.event.ContentEvent
 
 abstract class ContentProvider : WidgetProvider() {
     abstract suspend fun input(event: ContentEvent)

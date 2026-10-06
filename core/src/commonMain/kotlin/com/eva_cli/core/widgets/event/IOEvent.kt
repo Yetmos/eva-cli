@@ -1,7 +1,5 @@
-package com.eva_cli.core.widgets.provider.io
+package com.eva_cli.core.widgets.event
 
-import com.eva_cli.core.widgets.event.EventRecord
-import com.eva_cli.core.widgets.event.Event
 import kotlin.uuid.Uuid
 
 // IO事件

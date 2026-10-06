@@ -1,6 +1,7 @@
-package com.eva_cli.core.widgets.provider.io
+package com.eva_cli.core.widgets.provider
 
-import com.eva_cli.core.widgets.provider.WidgetProvider
+import com.eva_cli.core.widgets.event.InEvent
+import com.eva_cli.core.widgets.event.OutEvent
 
 abstract class IOProvider : WidgetProvider()
 
