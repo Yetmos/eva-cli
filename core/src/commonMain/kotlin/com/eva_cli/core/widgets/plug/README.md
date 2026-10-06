@@ -123,6 +123,34 @@ chat-plugin-1.0.0.eva
 PC、Android 的 `entryClass` 用于反射实例化公开无参入口；
 iOS 的 `factory` 用于生成静态注册代码，不用于运行时按类名加载。
 
+### 清单数据模型
+
+`commonMain` 中的 `PluginManifest` 对应上述 JSON 结构，使用现有的 Kotlin Serialization 编解码：
+
+```kotlin
+import com.eva_cli.core.widgets.plug.PluginManifest
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+val manifest = Json.decodeFromString<PluginManifest>(jsonText)
+val json = Json.encodeToString(manifest)
+```
+
+`formatVersion`、`id`、`name`、`version`、`apiVersion`、`platforms` 为必填字段。
+`platforms` 下的 `jvm`、`android`、`ios` 均可省略，省略时为 `null`，表示未声明该平台。
+声明 JVM 或 Android 平台时，`artifact` 和 `entryClass` 必填；JVM 的 `dependencies`、
+`minJavaVersion` 及 Android 的 `minSdk` 默认为 `null`，表示未声明。
+iOS 的 `repository`、`coordinate`、`factory` 均必填。
+
+顶层 `resources`、`source`、`builtWith` 可省略，默认均为 `null`。
+声明 `source` 时，`coordinate` 必填，`directory` 默认 `.`，`gradleProject` 默认 `:`；
+声明 `builtWith` 时，`kotlin` 必填。源码描述可省略不改变 `.eva` 包应包含源码工程的发布约定。
+默认编码会省略具有默认值的字段；如需显式输出它们，可使用 `Json { encodeDefaults = true }`。
+
+该模型仅描述清单并支持 JSON 编解码，不包含文件读取或插件加载。
+安装流程仍需检查至少存在一个可用平台、包格式及 API 兼容性、字段取值和包内文件的有效性。
+
 ## 平台接入规则
 
 - PC：解压后使用 URLClassLoader 加载 `prebuilt/jvm/plugin.jar` 和 `prebuilt/jvm/lib/` 中的私有依赖，
