@@ -1,0 +1,14 @@
+{
+  "formatVersion": 1,
+  "id": "com.eva_cli.examples.echo",
+  "name": "Echo Plugin",
+  "version": "0.1.0-alpha",
+  "apiVersion": 1,
+  "platforms": {
+    "jvm": {
+      "artifact": "prebuilt/jvm/plugin.jar",
+      "entryClass": "com.eva_cli.examples.echo.EchoPlugin",
+      "minJavaVersion": 17
+    }
+  }
+}

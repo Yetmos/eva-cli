@@ -211,8 +211,13 @@ class ChatProvider : WidgetProvider() {
 元数据、事件处理和输出回调。若后续提供输入、输出或其他专用 Provider 基类，具体实现应
 继承职责最接近的一个基类，不需要重复继承 `WidgetProvider`。
 
-插件入口负责把创建出的组件交给宿主注册。注册 API 由宿主 SDK 提供，入口类名必须与
-`plugin.json` 中对应平台的 `entryClass` 或 `factory` 一致。
+插件入口实现 `PluginEntry`，通过 `providers` 和 `dispatchers` 提供组件列表，未提供的
+组件种类默认为空列表。同一入口实例始终持有同一组组件实例；宿主负责注册、绑定回调及
+调用组件的 `start` / `stop`，读取列表不会启动组件。入口类名必须与 `plugin.json` 中
+对应平台的 `entryClass` 或 `factory` 一致。
+
+仓库内的 `eva-cli/examples/echo-plugin` 提供最小入口、文本回显 Provider 和 JVM 加载测试。
+在 `eva-cli` 目录执行 `./gradlew :examples:echo-plugin:check` 可构建并验证该示例。
 
 当前仓库中的扫描、备份和恢复流程仍在实现中；上述继承约定定义的是插件 API 边界，不能替代
 宿主的组件注册和运行时调度实现。

@@ -4,12 +4,16 @@
 
 当前仅有 `Eva` 与 `Runtime` 基础入口骨架，CLI 提供帮助和命令解析框架。agent 编排、脚本执行与沙盒功能尚未实现。
 
+插件开发可参考 [Echo Plugin 示例](examples/echo-plugin/README.md)，其中包含最小入口、
+文本 Provider、插件清单及 JVM JAR 加载测试。
+
 ## 模块
 
 | 模块 | 职责与依赖 |
 | --- | --- |
 | `core` | KMP 核心代码与数据模型，提供 JVM、Android、iOS targets，无 UI 依赖 |
 | `cli` | JVM application 入口，依赖 `core`，处理命令行参数与输出 |
+| `examples/echo-plugin` | KMP 插件示例，当前提供 JVM target，依赖 `core` 的插件 API |
 
 核心入口面向 JVM、Android 和 iOS 共用；CLI 通过 JVM target 使用它。
 

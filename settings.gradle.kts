@@ -17,3 +17,4 @@ rootProject.name = "eva-cli"
 
 include(":core")
 include(":cli")
+include(":examples:echo-plugin")
