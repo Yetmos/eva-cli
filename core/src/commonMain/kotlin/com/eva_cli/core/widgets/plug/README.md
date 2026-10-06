@@ -183,12 +183,44 @@ iOS 的 `factory` 用于生成静态注册代码，不用于运行时按类名�
 
 ## Plugin 描述字段
 
-当前宿主中的 `Plugin` 保存插件名称和来源信息，发布版本、API 版本和平台产物位置由清单描述。
+宿主中的 `Plugin` 保存插件身份、来源、启用状态和业务配置。
+`id`、`name` 根据 `plugin.json` 填充；发布版本、API 版本和平台产物位置仍由清单描述。
 
-| 字段 | 说明 |
-| --- | --- |
-| `Plugin.name` | 插件名。 |
-| `Plugin.source` | 插件来源信息，类型为 `PluginSource`。 |
-| `PluginSource.sourceType` | 来源类型，取值为 `URL`、`GIT`、`CODE`。 |
+| 字段 | 必填 / 默认值 | 说明 |
+| --- | --- | --- |
+| `Plugin.id` | 必填 | 清单中的稳定唯一标识，用于安装、升级和去重。 |
+| `Plugin.name` | 必填 | 清单中的插件展示名称。 |
+| `Plugin.source` | 必填 | 插件来源信息，类型为 `PluginSource`。 |
+| `Plugin.enabled` | `true` | 宿主是否启用插件。 |
+| `Plugin.config` | 空 JSON 对象 | 插件业务配置，类型为 `JsonObject`，支持嵌套对象、数组和不同 JSON 值类型。 |
+
+`PluginSource` 为密封接口，使用对应的数据类构造来源。
+`sourceType` 由数据类确定，取值为 `URL`、`GIT`、`FILE`，无需单独配置。
+
+| 来源 | 字段 | 必填 / 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `PluginSource.Url` | `url` | 必填 | `.eva` 发布包下载地址。 |
+| `PluginSource.Url` | `sha256` | `null` | 预期发布包 SHA-256 摘要，未指定时不提供摘要校验依据。 |
+| `PluginSource.Git` | `repository` | 必填 | Git 仓库地址。 |
+| `PluginSource.Git` | `ref` | `null` | 分支、标签或提交号；未指定时约定使用仓库默认分支。 |
+| `PluginSource.Git` | `directory` | `"."` | 仓库内插件工程的相对目录，默认仓库根目录。 |
+| `PluginSource.File` | `uri` | 必填 | 本地 `.eva` 文件路径或平台文件 URI。 |
+| `PluginSource.File` | `sha256` | `null` | 预期发布包 SHA-256 摘要。 |
+
+```kotlin
+val plugin = Plugin(
+    id = "com.example.chat",
+    name = "Chat Plugin",
+    source = PluginSource.Url(url = "https://example.com/chat-plugin-1.0.0.eva"),
+)
+
+val gitSource = PluginSource.Git(
+    repository = "https://example.com/chat-plugin.git",
+    ref = "v1.0.0",
+)
+
+val fileSource = PluginSource.File(uri = "/path/to/chat-plugin-1.0.0.eva")
+```
 
 清单中的 `source` 描述包内源码工程的位置和模块坐标，与宿主 `Plugin.source` 的来源信息用途不同。
+上述模型仅保存字段；清单读取、下载、Git 获取、文件访问、摘要校验及启用和配置应用逻辑仍需由安装器或宿主实现。
