@@ -11,15 +11,10 @@ data class Plugin(
     val config: JsonObject = JsonObject(emptyMap()),
 )
 
-/** 插件的获取位置，与 plugin.json 中描述包内源码位置的 source 不同。 */
+// 插件的获取位置，与 plugin.json 中描述包内源码位置的 source 不同。
 sealed interface PluginSource {
     val sourceType: SourceType
-
-    enum class SourceType {
-        URL,
-        GIT,
-        FILE,
-    }
+    enum class SourceType { URL, GIT, FILE, }
 
     /** [url] 指向插件发布包，[sha256] 为可选的预期文件摘要。 */
     data class Url(
