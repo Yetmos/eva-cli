@@ -220,7 +220,7 @@ class ChatProvider : WidgetProvider() {
 仓库内的 `eva-cli/examples/echo-plugin` 提供最小入口、文本回显 Provider 和 JVM 加载测试。
 在 `eva-cli` 目录执行 `./gradlew :examples:echo-plugin:check` 可构建并验证该示例。
 
-当前仓库中的扫描、备份和恢复流程仍在实现中；上述继承约定定义的是插件 API 边界，不能替代
+当前仓库中的组件扫描和 records 备份恢复流程仍在实现中；上述继承约定定义的是插件 API 边界，不能替代
 宿主的组件注册和运行时调度实现。
 
 ## JVM 本地安装
@@ -276,6 +276,29 @@ ID 和版本必须是安全的单个目录名，非法参数抛出 `IllegalArgum
 链接本身。目录结构无效或文件删除失败时抛出 `IllegalStateException`；删除失败可能留下部分
 文件，可在解决文件占用或权限问题后重试。此操作同步访问磁盘，应在后台线程调用。
 Android/iOS 当前抛出 `UnsupportedOperationException`。
+
+## 备份与恢复插件
+
+JVM 宿主通过以下方法保存和恢复插件安装快照：
+
+```kotlin
+PlugManager.backup()
+PlugManager.restore()
+```
+
+`backup()` 将 `installedList` 中所有有效插件版本及其完整目录（JAR、源码、资源和空目录）
+保存到运行目录下的 `Backup/plugins.zip`。每次成功备份更新这份快照，失败时保留上一次快照。
+快照包含格式版本、插件列表、文件目录清单及文件 SHA-256；没有已安装插件时也会生成有效的空快照。
+无效安装和安装临时目录不会进入快照；插件目录内的符号链接或特殊文件会使备份失败。
+
+`restore()` 先在临时目录中校验快照清单、文件摘要及 JVM 插件产物，再替换整个 `Plugins` 目录。
+因此备份后新增的插件会被移除，同版本修改过或删除的文件会恢复；空快照会清空插件安装目录。
+快照保留，可重复恢复。`Data`、`Events`、`Logs` 及已加载的插件实例不受影响；恢复后应重新加载插件。
+
+缺失、损坏或不兼容的快照会抛出 `IllegalStateException`，校验失败不会修改当前插件；
+目录替换失败时会尝试回滚。备份和恢复不支持与安装、卸载或插件文件写入并发执行，
+也不保证进程崩溃或断电时的事务恢复。两个方法均为同步磁盘操作，应在后台线程调用。
+Android/iOS 当前与安装器保持一致，明确抛出 `UnsupportedOperationException`。
 
 ## 平台接入规则
 

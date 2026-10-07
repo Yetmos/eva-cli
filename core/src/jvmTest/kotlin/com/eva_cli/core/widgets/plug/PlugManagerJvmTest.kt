@@ -10,12 +10,223 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class PlugManagerJvmTest {
+    @Test
+    fun restoresAllPluginVersionsAndTheirContentsFromTheSnapshot() = withRuntimeRoot { root ->
+        val first = writeInstalledFixture(root, "com.example.test")
+        val secondArchive = createEva(root.resolve("second.eva"), version = "2.0.0")
+        PlugManager.installPlugin(PluginSource.File(secondArchive.toString()))
+        writeInstalledFixture(root, "com.example.other")
+        Files.createDirectories(first.resolve("resources/empty"))
+        Files.write(first.resolve("resources/data.bin"), byteArrayOf(0, 1, -1, 127))
+        val source = Files.createDirectories(first.resolve("src/commonMain/kotlin"))
+        Files.writeString(source.resolve("Example.kt"), "// saved source")
+        val expected = directoryContents(root.resolve("Plugins"))
+        val data = Files.createDirectories(root.resolve("Data"))
+        Files.writeString(data.resolve("keep.txt"), "runtime data")
+
+        PlugManager.backup()
+        assertTrue(Files.isRegularFile(root.resolve("Backup/plugins.zip")))
+        assertEquals(expected, directoryContents(root.resolve("Plugins")))
+
+        PlugManager.uninstallPlugin("com.example.test", "1.0.0")
+        Files.writeString(root.resolve("Plugins/com.example.test/2.0.0/prebuilt/jvm/plugin.jar"), "broken")
+        writeInstalledFixture(root, "com.example.new")
+
+        PlugManager.restore()
+        assertEquals(expected, directoryContents(root.resolve("Plugins")))
+        assertEquals(3, PlugManager.installedList.size)
+        assertEquals("runtime data", Files.readString(data.resolve("keep.txt")))
+
+        PlugManager.restore()
+        assertEquals(expected, directoryContents(root.resolve("Plugins")))
+    }
+
+    @Test
+    fun restoresAnEmptySnapshotAndCanRestoreIntoAMissingPluginsDirectory() = withRuntimeRoot { root ->
+        PlugManager.backup()
+        writeInstalledFixture(root, "com.example.new")
+
+        PlugManager.restore()
+        assertTrue(PlugManager.installedList.isEmpty())
+        assertTrue(directoryContents(root.resolve("Plugins")).isEmpty())
+
+        writeInstalledFixture(root, "com.example.saved")
+        PlugManager.backup()
+        assertTrue(root.resolve("Plugins").toFile().deleteRecursively())
+
+        PlugManager.restore()
+        assertEquals("com.example.saved", PlugManager.installedList.single().manifest.id)
+    }
+
+    @Test
+    fun aSuccessfulBackupReplacesThePreviousSnapshot() = withRuntimeRoot { root ->
+        writeInstalledFixture(root, "com.example.old")
+        PlugManager.backup()
+        PlugManager.uninstallPlugin("com.example.old", "1.0.0")
+        writeInstalledFixture(root, "com.example.latest")
+        PlugManager.backup()
+        PlugManager.uninstallPlugin("com.example.latest", "1.0.0")
+
+        PlugManager.restore()
+
+        assertEquals("com.example.latest", PlugManager.installedList.single().manifest.id)
+    }
+
+    @Test
+    fun backsUpOnlyValidInstalledVersionsAndExcludesInstallationStaging() = withRuntimeRoot { root ->
+        writeInstalledFixture(root, "com.example.saved")
+        val broken = writeInstalledFixture(root, "com.example.broken")
+        Files.writeString(broken.resolve("plugin.json"), "broken json")
+        writeInstalledFixture(root, ".eva-install-incomplete")
+
+        PlugManager.backup()
+        PlugManager.restore()
+
+        assertEquals("com.example.saved", PlugManager.installedList.single().manifest.id)
+        assertEquals(setOf("com.example.saved"), root.resolve("Plugins").toFile().list()?.toSet())
+    }
+
+    @Test
+    fun aMissingSnapshotDoesNotModifyPluginsOrCreateABackupDirectory() = withRuntimeRoot { root ->
+        writeInstalledFixture(root, "com.example.current")
+        val expected = directoryContents(root.resolve("Plugins"))
+
+        assertFailsWith<IllegalStateException> { PlugManager.restore() }
+
+        assertEquals(expected, directoryContents(root.resolve("Plugins")))
+        assertFalse(Files.exists(root.resolve("Backup")))
+    }
+
+    @Test
+    fun rejectsCorruptedAndUnrelatedZipFilesWithoutReplacingPlugins() {
+        for (isZip in listOf(false, true)) {
+            withRuntimeRoot { root ->
+                writeInstalledFixture(root, "com.example.current")
+                val expected = directoryContents(root.resolve("Plugins"))
+                Files.createDirectory(root.resolve("Backup"))
+                val snapshot = root.resolve("Backup/plugins.zip")
+                if (isZip) {
+                    ZipOutputStream(Files.newOutputStream(snapshot)).use { zip ->
+                        zip.putNextEntry(ZipEntry("Plugins/"))
+                        zip.closeEntry()
+                    }
+                } else {
+                    Files.writeString(snapshot, "not a snapshot")
+                }
+
+                assertFailsWith<IllegalStateException> { PlugManager.restore() }
+
+                assertEquals(expected, directoryContents(root.resolve("Plugins")))
+            }
+        }
+    }
+
+    @Test
+    fun rejectsChangedOrMissingSnapshotFilesBeforeReplacingPlugins() {
+        for (removeFile in listOf(false, true)) {
+            withRuntimeRoot { root ->
+                val installed = writeInstalledFixture(root, "com.example.saved")
+                Files.writeString(installed.resolve("README.md"), "original resource")
+                PlugManager.backup()
+                rewriteSnapshot(root) { name, bytes ->
+                    if (name.endsWith("/README.md")) {
+                        if (removeFile) null else "tampered resource".encodeToByteArray()
+                    } else {
+                        bytes
+                    }
+                }
+                writeInstalledFixture(root, "com.example.current")
+                val expected = directoryContents(root.resolve("Plugins"))
+
+                assertFailsWith<IllegalStateException> { PlugManager.restore() }
+
+                assertEquals(expected, directoryContents(root.resolve("Plugins")))
+            }
+        }
+    }
+
+    @Test
+    fun rejectsUnexpectedAndTraversingSnapshotEntriesWithoutWritingOutsidePlugins() = withRuntimeRoot { root ->
+        writeInstalledFixture(root, "com.example.saved")
+        PlugManager.backup()
+        val snapshot = root.resolve("Backup/plugins.zip")
+        val original = Files.readAllBytes(snapshot)
+        for (entry in listOf("../escaped.txt", "Plugins/../../escaped.txt", "unexpected.txt")) {
+            Files.write(snapshot, original)
+            rewriteSnapshot(root, extraEntry = entry) { _, bytes -> bytes }
+            val expected = directoryContents(root.resolve("Plugins"))
+
+            assertFailsWith<IllegalStateException> { PlugManager.restore() }
+
+            assertEquals(expected, directoryContents(root.resolve("Plugins")))
+            assertFalse(Files.exists(root.resolve("escaped.txt")))
+        }
+    }
+
+    @Test
+    fun failedBackupKeepsThePreviousSnapshotAndDoesNotFollowInternalLinks() = withRuntimeRoot { root ->
+        if (System.getProperty("os.name").startsWith("Windows")) return@withRuntimeRoot
+        val installed = writeInstalledFixture(root, "com.example.saved")
+        PlugManager.backup()
+        val snapshot = root.resolve("Backup/plugins.zip")
+        val original = Files.readAllBytes(snapshot)
+        val outside = Files.createDirectory(root.resolve("outside"))
+        Files.writeString(outside.resolve("keep.txt"), "private content")
+        Files.createSymbolicLink(installed.resolve("linked-resource"), outside)
+
+        assertFailsWith<IllegalStateException> { PlugManager.backup() }
+
+        assertContentEquals(original, Files.readAllBytes(snapshot))
+        assertEquals("private content", Files.readString(outside.resolve("keep.txt")))
+        Files.delete(installed.resolve("linked-resource"))
+        PlugManager.restore()
+        assertEquals("com.example.saved", PlugManager.installedList.single().manifest.id)
+    }
+
+    @Test
+    fun refusesFileAndSymlinkCollisionsAtSnapshotBoundaries() {
+        for (relative in listOf("Backup", "Backup/plugins.zip", "Plugins")) {
+            for (linked in listOf(false, true)) {
+                if (linked && System.getProperty("os.name").startsWith("Windows")) continue
+                withRuntimeRoot { root ->
+                    PlugManager.backup()
+                    val path = root.resolve(relative)
+                    if (Files.exists(path)) assertTrue(path.toFile().deleteRecursively())
+                    Files.createDirectories(path.parent)
+                    val outside = root.resolve("outside.txt")
+                    Files.writeString(outside, "keep outside")
+                    if (linked) {
+                        Files.createSymbolicLink(path, outside)
+                    } else if (relative.endsWith(".zip")) {
+                        Files.createDirectory(path)
+                        Files.writeString(path.resolve("keep.txt"), "keep directory")
+                    } else {
+                        Files.writeString(path, "keep file")
+                    }
+
+                    assertFailsWith<IllegalStateException> { PlugManager.backup() }
+                    assertFailsWith<IllegalStateException> { PlugManager.restore() }
+
+                    assertEquals("keep outside", Files.readString(outside))
+                    if (linked) {
+                        assertTrue(Files.isSymbolicLink(path))
+                    } else if (relative.endsWith(".zip")) {
+                        assertEquals("keep directory", Files.readString(path.resolve("keep.txt")))
+                    } else {
+                        assertEquals("keep file", Files.readString(path))
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     fun uninstallsOnlyTheRequestedVersionAndRefreshesTheInstalledList() = withRuntimeRoot { root ->
         val first = writeInstalledFixture(root, "com.example.test")
@@ -337,6 +548,39 @@ class PlugManagerJvmTest {
             PlugManager.installPlugin(PluginSource.File(first.toString()))
         }
         assertTrue(error.message.orEmpty().contains("清单不匹配"))
+    }
+
+    private fun directoryContents(directory: Path): Map<String, List<Byte>?> = Files.walk(directory).use { paths ->
+        paths.filter { it != directory }.toList().associate { path ->
+            directory.relativize(path).toString() to
+                if (Files.isDirectory(path)) null else Files.readAllBytes(path).toList()
+        }
+    }
+
+    private fun rewriteSnapshot(
+        root: Path,
+        extraEntry: String? = null,
+        transform: (String, ByteArray) -> ByteArray?,
+    ) {
+        val snapshot = root.resolve("Backup/plugins.zip")
+        val replacement = root.resolve("replacement.zip")
+        ZipFile(snapshot.toFile()).use { source ->
+            ZipOutputStream(Files.newOutputStream(replacement)).use { output ->
+                for (entry in source.entries()) {
+                    val bytes = source.getInputStream(entry).use { it.readBytes() }
+                    val changed = transform(entry.name, bytes) ?: continue
+                    output.putNextEntry(ZipEntry(entry.name))
+                    output.write(changed)
+                    output.closeEntry()
+                }
+                if (extraEntry != null) {
+                    output.putNextEntry(ZipEntry(extraEntry))
+                    output.write("unexpected content".encodeToByteArray())
+                    output.closeEntry()
+                }
+            }
+        }
+        Files.move(replacement, snapshot, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
     }
 
     private fun createEva(

@@ -9,3 +9,9 @@ internal actual fun listInstalledPlugins(): List<InstalledPluginInfo> =
 
 internal actual fun uninstallLocalPlugin(id: String, version: String): Boolean =
     throw UnsupportedOperationException("Android 插件卸载尚未实现：$id:$version")
+
+internal actual fun backupLocalPlugins(): Unit =
+    throw UnsupportedOperationException("Android 插件备份尚未实现")
+
+internal actual fun restoreLocalPlugins(): Unit =
+    throw UnsupportedOperationException("Android 插件恢复尚未实现")

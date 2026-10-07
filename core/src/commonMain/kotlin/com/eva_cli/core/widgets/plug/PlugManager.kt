@@ -39,7 +39,6 @@ object PlugManager {
 
     /**
      * 安装插件发布包。
-     *
      * 本地文件在各平台通过 actual 实现；URL/Git 来源需要下载器和源码构建流程，
      * 当前会明确抛出 [UnsupportedOperationException]。
      */
@@ -58,15 +57,19 @@ object PlugManager {
      */
     fun uninstallPlugin(id: String, version: String): Boolean = uninstallLocalPlugin(id, version)
 
-    // TODO: 备份所有的插件
-    fun backup() {
+    /**
+     * 将所有有效的已安装插件版本备份到 Backup/plugins.zip，成功后替换上一次快照。
+     * 包含插件目录中的资源、源码和空目录；失败时抛出 [IllegalStateException]。
+     * 此操作同步访问文件，应在后台线程调用；Android/iOS 当前不支持备份。
+     */
+    fun backup(): Unit = backupLocalPlugins()
 
-    }
-
-    // TODO: 从备份中恢复插件
-    fun restore() {
-
-    }
+    /**
+     * 校验 Backup/plugins.zip 后恢复完整安装快照，移除备份后新增的插件版本。
+     * 快照不存在、损坏或恢复失败时抛出 [IllegalStateException]；不处理已加载的实例。
+     * 此操作同步访问文件，应在后台线程调用；Android/iOS 当前不支持恢复。
+     */
+    fun restore(): Unit = restoreLocalPlugins()
 }
 
 internal expect fun installLocalPlugin(source: PluginSource.File): InstalledPlugin
@@ -74,3 +77,7 @@ internal expect fun installLocalPlugin(source: PluginSource.File): InstalledPlug
 internal expect fun listInstalledPlugins(): List<InstalledPluginInfo>
 
 internal expect fun uninstallLocalPlugin(id: String, version: String): Boolean
+
+internal expect fun backupLocalPlugins()
+
+internal expect fun restoreLocalPlugins()

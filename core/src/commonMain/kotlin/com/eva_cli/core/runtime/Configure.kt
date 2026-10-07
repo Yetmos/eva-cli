@@ -11,6 +11,7 @@ object Configure {
     const val LOGS_DIR = "Logs"
     const val DATA_DIR = "Data"
     const val EVENTS_DIR = "Events"
+    const val BACKUP = "Backup"
 
     fun start() {
         checkDic()
@@ -23,10 +24,11 @@ object Configure {
      * /Logs: 存放本地日志
      * /Data: 存放各种Dispatcher和Provider的备份数据(records，注册表和各种备份数据)
      * /Events: 存放各种处理过的Event记录
+     * /Backup: 存放插件安装快照
      */
     fun checkDic() {
         val rootPath = FileUtils.rootPath()
-        for (directory in listOf(PLUGINS_DIR, LOGS_DIR, DATA_DIR, EVENTS_DIR)) {
+        for (directory in listOf(PLUGINS_DIR, LOGS_DIR, DATA_DIR, EVENTS_DIR, BACKUP)) {
             FileUtils.createDirectories("$rootPath/$directory")
         }
     }

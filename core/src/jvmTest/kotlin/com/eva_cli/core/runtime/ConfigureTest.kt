@@ -15,7 +15,7 @@ class ConfigureTest {
 
         Configure.start()
 
-        val expectedDirectories = setOf("Plugins", "Logs", "Data", "Events")
+        val expectedDirectories = setOf("Plugins", "Logs", "Data", "Events", "Backup")
         assertEquals(expectedDirectories, runtimeRoot.list()?.toSet())
         for (name in expectedDirectories) {
             assertTrue(runtimeRoot.resolve(name).isDirectory, "$name should be a directory")

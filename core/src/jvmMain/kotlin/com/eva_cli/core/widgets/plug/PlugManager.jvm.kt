@@ -175,7 +175,7 @@ private fun validateExpectedDigest(expected: String?, actual: String) {
     }
 }
 
-private fun sha256(path: Path): String {
+internal fun sha256(path: Path): String {
     val digest = MessageDigest.getInstance("SHA-256")
     Files.newInputStream(path).use { input ->
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -189,30 +189,8 @@ private fun sha256(path: Path): String {
 }
 
 private fun extractZip(archive: Path, destination: Path) {
-    val written = HashSet<Path>()
     try {
-        ZipFile(archive.toFile()).use { zip ->
-            val entries = zip.entries()
-            while (entries.hasMoreElements()) {
-                val entry = entries.nextElement()
-                val relative = safeArchivePath(entry.name)
-                val output = destination.resolve(relative).normalize()
-                if (!output.startsWith(destination)) {
-                    throw PluginInstallException("插件包包含越界路径：${entry.name}")
-                }
-                if (!written.add(output)) {
-                    throw PluginInstallException("插件包包含重复路径：${entry.name}")
-                }
-                if (entry.isDirectory) {
-                    Files.createDirectories(output)
-                    continue
-                }
-                Files.createDirectories(output.parent)
-                zip.getInputStream(entry).use { input ->
-                    Files.newOutputStream(output).use { outputStream -> input.copyTo(outputStream) }
-                }
-            }
-        }
+        ZipFile(archive.toFile()).use { zip -> extractZip(zip, destination) }
     } catch (error: PluginInstallException) {
         throw error
     } catch (error: Exception) {
@@ -220,7 +198,31 @@ private fun extractZip(archive: Path, destination: Path) {
     }
 }
 
-private fun safeArchivePath(entryName: String): Path {
+internal fun extractZip(zip: ZipFile, destination: Path) {
+    val written = HashSet<Path>()
+    val entries = zip.entries()
+    while (entries.hasMoreElements()) {
+        val entry = entries.nextElement()
+        val relative = safeArchivePath(entry.name)
+        val output = destination.resolve(relative).normalize()
+        if (!output.startsWith(destination)) {
+            throw PluginInstallException("插件包包含越界路径：${entry.name}")
+        }
+        if (!written.add(output)) {
+            throw PluginInstallException("插件包包含重复路径：${entry.name}")
+        }
+        if (entry.isDirectory) {
+            Files.createDirectories(output)
+            continue
+        }
+        Files.createDirectories(output.parent)
+        zip.getInputStream(entry).use { input ->
+            Files.newOutputStream(output).use { outputStream -> input.copyTo(outputStream) }
+        }
+    }
+}
+
+internal fun safeArchivePath(entryName: String): Path {
     if (entryName.isBlank() || entryName.indexOf('\u0000') >= 0) {
         throw PluginInstallException("插件包包含无效路径：$entryName")
     }
@@ -239,7 +241,7 @@ private fun safeArchivePath(entryName: String): Path {
     return relative
 }
 
-private fun readManifest(stagingDirectory: Path): PluginManifest {
+internal fun readManifest(stagingDirectory: Path): PluginManifest {
     val manifestPath = stagingDirectory.resolve("plugin.json")
     if (!Files.isRegularFile(manifestPath)) {
         throw PluginInstallException("插件包根目录缺少 plugin.json")
@@ -253,7 +255,7 @@ private fun readManifest(stagingDirectory: Path): PluginManifest {
     }
 }
 
-private fun validateManifest(manifest: PluginManifest, stagingDirectory: Path) {
+internal fun validateManifest(manifest: PluginManifest, stagingDirectory: Path) {
     if (manifest.formatVersion != CURRENT_PLUGIN_FORMAT_VERSION) {
         throw PluginInstallException(
             "不支持的 .eva formatVersion=${manifest.formatVersion}，当前版本为 $CURRENT_PLUGIN_FORMAT_VERSION",
@@ -318,7 +320,7 @@ private fun validateInstallSegment(value: String, label: String) {
     }
 }
 
-private fun isSafeInstallSegment(value: String): Boolean =
+internal fun isSafeInstallSegment(value: String): Boolean =
     value.isNotBlank() && value == value.trim() && value != "." && value != ".." &&
         value.none { it == '/' || it == '\\' || it == ':' || it.isISOControl() }
 
@@ -353,7 +355,7 @@ private fun existingInstallation(path: Path, expected: PluginManifest): Boolean?
     }
 }
 
-private fun moveIntoPlace(staging: Path, destination: Path) {
+internal fun moveIntoPlace(staging: Path, destination: Path) {
     try {
         Files.move(staging, destination, StandardCopyOption.ATOMIC_MOVE)
     } catch (_: AtomicMoveNotSupportedException) {
@@ -362,7 +364,7 @@ private fun moveIntoPlace(staging: Path, destination: Path) {
     }
 }
 
-private fun deleteRecursively(path: Path) {
+internal fun deleteRecursively(path: Path) {
     if (!Files.exists(path)) return
     Files.walk(path).use { stream ->
         stream.sorted(Comparator.reverseOrder<Path>()).forEach { Files.deleteIfExists(it) }
