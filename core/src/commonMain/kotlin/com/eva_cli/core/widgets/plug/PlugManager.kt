@@ -20,9 +20,22 @@ data class InstalledPlugin(
     val sha256: String,
 )
 
+/** 从安装目录读取的插件信息；每个已安装版本对应一项。 */
+data class InstalledPluginInfo(
+    val manifest: PluginManifest,
+    /** 插件安装目录的绝对路径。 */
+    val directory: String,
+)
+
 object PlugManager {
 
-    // TODO: 新增 installedList
+    /**
+     * 已安装插件的只读快照，每次读取均扫描磁盘，按 ID、版本字符串排序。
+     * JVM 跳过临时目录、无效或不兼容的安装项；Android/iOS 当前不支持查询。
+     * 此操作同步读取文件，应在后台线程调用。
+     */
+    val installedList: List<InstalledPluginInfo>
+        get() = listInstalledPlugins()
 
     /**
      * 安装插件发布包。
@@ -52,3 +65,5 @@ object PlugManager {
 }
 
 internal expect fun installLocalPlugin(source: PluginSource.File): InstalledPlugin
+
+internal expect fun listInstalledPlugins(): List<InstalledPluginInfo>

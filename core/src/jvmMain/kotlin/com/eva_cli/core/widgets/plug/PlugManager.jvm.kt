@@ -7,6 +7,7 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
+import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
@@ -15,6 +16,51 @@ import java.util.zip.ZipFile
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+
+/** 从安装目录读取当前有效的 JVM 插件，不创建目录或修改安装记录。 */
+internal actual fun listInstalledPlugins(): List<InstalledPluginInfo> {
+    val pluginsDirectory = Path.of(FileUtils.rootPath())
+        .resolve(Configure.PLUGINS_DIR)
+        .toAbsolutePath()
+        .normalize()
+    if (Files.notExists(pluginsDirectory, NOFOLLOW_LINKS)) return emptyList()
+    if (!Files.isDirectory(pluginsDirectory, NOFOLLOW_LINKS) || !Files.isReadable(pluginsDirectory)) {
+        throw IllegalStateException("插件安装根目录不可读或不是普通目录：$pluginsDirectory")
+    }
+
+    val installed = mutableListOf<InstalledPluginInfo>()
+    try {
+        Files.newDirectoryStream(pluginsDirectory).use { pluginDirectories ->
+            for (pluginDirectory in pluginDirectories) {
+                if (pluginDirectory.fileName.toString().startsWith(".eva-install-") ||
+                    !Files.isDirectory(pluginDirectory, NOFOLLOW_LINKS)
+                ) continue
+
+                Files.newDirectoryStream(pluginDirectory).use { versionDirectories ->
+                    for (versionDirectory in versionDirectories) {
+                        if (!Files.isDirectory(versionDirectory, NOFOLLOW_LINKS) ||
+                            !Files.isRegularFile(versionDirectory.resolve("plugin.json"), NOFOLLOW_LINKS)
+                        ) continue
+
+                        try {
+                            val manifest = readManifest(versionDirectory)
+                            if (manifest.id != pluginDirectory.fileName.toString() ||
+                                manifest.version != versionDirectory.fileName.toString()
+                            ) continue
+                            validateManifest(manifest, versionDirectory)
+                            installed.add(InstalledPluginInfo(manifest, versionDirectory.toString()))
+                        } catch (_: PluginInstallException) {
+                            // 不完整或损坏的安装不影响其他有效插件的查询。
+                        }
+                    }
+                }
+            }
+        }
+    } catch (error: Exception) {
+        throw IllegalStateException("无法读取已安装插件列表：$pluginsDirectory", error)
+    }
+    return installed.sortedWith(compareBy({ it.manifest.id }, { it.manifest.version }))
+}
 
 /** JVM 本地 .eva 安装实现。 */
 internal actual fun installLocalPlugin(source: PluginSource.File): InstalledPlugin {

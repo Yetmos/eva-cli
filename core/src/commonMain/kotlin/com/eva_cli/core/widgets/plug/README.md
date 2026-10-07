@@ -235,6 +235,30 @@ ZIP 中的绝对路径、父目录跳转和重复路径会被拒绝，失败时�
 URL 和 Git 来源当前会明确抛出 `UnsupportedOperationException`。Android 和 iOS 保留相同 API，
 但本地安装器尚未接入各自的平台运行时。
 
+## 查询已安装插件
+
+JVM 宿主通过只读属性 `PlugManager.installedList` 获取当前安装目录的快照：
+
+```kotlin
+val installed = PlugManager.installedList
+for (plugin in installed) {
+    println("${plugin.manifest.id}:${plugin.manifest.version} -> ${plugin.directory}")
+}
+```
+
+返回类型为 `List<InstalledPluginInfo>`，每项包含清单 `manifest` 和安装目录的绝对路径
+`directory`。每个版本单独列出，按插件 ID、版本字符串排序（不是语义版本优先级）。
+每次读取都扫描 `Plugins/<id>/<version>`，无需再次安装或保留原 `.eva`；重启后仍可发现
+已有安装，目录删除后下一次查询会反映变化。查询为同步文件 I/O，应在后台线程调用。
+
+查询复用安装器的清单与 JVM 产物校验，跳过 `.eva-install-*` 临时目录、不完整、损坏、
+不兼容及目录名与清单 ID/版本不一致的安装项，不跟随插件目录、版本目录或清单的符号链接。
+`Plugins` 不存在时返回空列表，不创建目录；根路径不是普通目录或目录遍历失败时抛出
+`IllegalStateException`。Android/iOS 查询当前抛出 `UnsupportedOperationException`。
+
+列表信息不包含安装调用的 `alreadyInstalled` 标志，也不推算原始发布包的 SHA-256；
+这些字段仍由 `installPlugin` 返回的 `InstalledPlugin` 提供。
+
 ## 平台接入规则
 
 - PC：解压后使用 URLClassLoader 加载 `prebuilt/jvm/plugin.jar` 和 `prebuilt/jvm/lib/` 中的私有依赖，
