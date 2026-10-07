@@ -142,7 +142,7 @@ JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 ## 扩展示例
 
 将包名和 `plugin.json` 的 `id`、`name`、`entryClass` 改成自己的插件信息，再替换
-Provider 的 `receive` 实现。新增 Dispatcher 时继承 `WidgetDispatcher`，并通过
+Provider 的 `receive` 实现。新增 Dispatcher 时继承 `PluginDispatcher`，并通过
 入口的 `dispatchers` 属性提供实例；宿主仍负责回调绑定和生命周期。
 
 ## 发布新版本

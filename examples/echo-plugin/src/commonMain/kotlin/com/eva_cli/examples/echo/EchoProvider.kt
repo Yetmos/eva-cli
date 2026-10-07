@@ -3,11 +3,11 @@ package com.eva_cli.examples.echo
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
 import com.eva_cli.core.widgets.provider.Provider
-import com.eva_cli.core.widgets.provider.WidgetProvider
+import com.eva_cli.core.widgets.provider.PluginProvider
 import kotlin.uuid.Uuid
 
 /** 最小文本处理示例；宿主须串行调用生命周期方法和 receive。 */
-class EchoProvider : WidgetProvider() {
+class EchoProvider : PluginProvider() {
     override val id: Uuid = Uuid.random()
     override val name = "Echo Provider"
     override val desc = "Replies to text events with an Echo: prefix"

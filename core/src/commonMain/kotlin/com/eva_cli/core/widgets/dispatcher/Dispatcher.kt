@@ -7,7 +7,7 @@ import com.eva_cli.core.widgets.event.Event
 import kotlin.uuid.Uuid
 
 // INFO: topic上事件的调度
-interface Dispatcher : Widget{
+interface Dispatcher : Widget {
 
     val id: Uuid
     val name: String

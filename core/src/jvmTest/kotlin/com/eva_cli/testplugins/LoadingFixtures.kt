@@ -1,25 +1,25 @@
 package com.eva_cli.testplugins
 
-import com.eva_cli.core.widgets.dispatcher.WidgetDispatcher
+import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
 import com.eva_cli.core.widgets.plug.LoadingFixtureHooks
 import com.eva_cli.core.widgets.plug.PluginEntry
 import com.eva_cli.core.widgets.provider.Provider
-import com.eva_cli.core.widgets.provider.WidgetProvider
+import com.eva_cli.core.widgets.provider.PluginProvider
 import com.eva_cli.testplugins.dependencies.PrivateDependency
 import kotlin.uuid.Uuid
 
 /** These classes are packaged into real test JARs, separate from the host API. */
 class LoadingEntry : PluginEntry {
-    override val providers = mutableListOf<WidgetProvider>(LoadingProvider())
-    override val dispatchers = mutableListOf<WidgetDispatcher>(LoadingDispatcher())
+    override val providers = mutableListOf<PluginProvider>(LoadingProvider())
+    override val dispatchers = mutableListOf<PluginDispatcher>(LoadingDispatcher())
 }
 
 class LoadingProvider(
     override val topic: String = "/Loading",
     override val id: Uuid = Uuid.random(),
-) : WidgetProvider() {
+) : PluginProvider() {
     override val name = PrivateDependency().description
     override val desc = "Loading fixture"
     override var enable = true
@@ -38,7 +38,7 @@ class LoadingProvider(
 class LoadingDispatcher(
     override val topic: String = "/Loading",
     override val id: Uuid = Uuid.random(),
-) : WidgetDispatcher() {
+) : PluginDispatcher() {
     override val name = "Loading dispatcher"
     override val desc = "Loading fixture"
 
@@ -57,7 +57,7 @@ class LoadingDispatcher(
 class QueryEntry : PluginEntry {
     override val providers = listOf(
         "/Room", "/Room/Child", "/Roommate", "/room", "/Room", "/", "/Room with space",
-    ).mapTo(mutableListOf<WidgetProvider>()) { LoadingProvider(it) }
+    ).mapTo(mutableListOf<PluginProvider>()) { LoadingProvider(it) }
 
     override val dispatchers = listOf(
         "/Zoo", "/", "/Room", "/Room/Second", "/Room/First", "/Room/First/Grandchild",
@@ -66,7 +66,7 @@ class QueryEntry : PluginEntry {
         "", "relative", "//Room", "/Room/", "/Room//Child", "/Room/.", "/Room/..",
         "/Room/ padded", "/Room/trailing ", "/Room/\tcontrol", "/Room/back\\slash",
         "/.", "/..", "/ leading", "/trailing ", "/back\\slash",
-    ).mapTo(mutableListOf<WidgetDispatcher>()) { LoadingDispatcher(it) }
+    ).mapTo(mutableListOf<PluginDispatcher>()) { LoadingDispatcher(it) }
 }
 
 class ScanEntry : PluginEntry {
@@ -90,7 +90,7 @@ class DuplicateRootsEntry : PluginEntry {
     override val dispatchers = listOf(BootDispatcher("/"), BootDispatcher("/"))
 }
 
-class BootDispatcher(override val topic: String) : WidgetDispatcher() {
+class BootDispatcher(override val topic: String) : PluginDispatcher() {
     override val name = "Plugin dispatcher"
     override val desc = "Boot lifecycle fixture"
     override suspend fun dispatch(event: Event) = Unit
@@ -137,12 +137,12 @@ class ConstructorFailureEntry : PluginEntry {
 }
 
 class ProvidersFailureEntry : PluginEntry {
-    override val providers: List<WidgetProvider>
+    override val providers: List<PluginProvider>
         get() = error("Providers getter failed")
 }
 
 class DispatchersFailureEntry : PluginEntry {
-    override val dispatchers: List<WidgetDispatcher>
+    override val dispatchers: List<PluginDispatcher>
         get() = error("Dispatchers getter failed")
 }
 

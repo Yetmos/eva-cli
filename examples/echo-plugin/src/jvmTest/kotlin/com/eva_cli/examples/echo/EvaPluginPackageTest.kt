@@ -33,8 +33,8 @@ class EvaPluginPackageTest {
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/PluginEntry.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/PluginManifest.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/PlugManager.kt",
-            "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/provider/WidgetProvider.kt",
-            "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/dispatcher/WidgetDispatcher.kt",
+            "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/provider/PluginProvider.kt",
+            "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/dispatcher/PluginDispatcher.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/event/Event.kt",
         )
         requiredFiles.forEach { path ->

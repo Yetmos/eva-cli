@@ -155,20 +155,20 @@ iOS 的 `repository`、`coordinate`、`factory` 均必填。
 ## 插件组件继承约定
 
 插件中的具体组件应继承面向插件开放的 `Widget` 基类：Dispatcher 继承
-`WidgetDispatcher`，Provider 继承 `WidgetProvider`。这两个类是插件扩展入口；
+`PluginDispatcher`，Provider 继承 `PluginProvider`。这两个类是插件扩展入口；
 `BaseDispatcher` 和 `BaseProvider` 是宿主侧的基础实现，插件不应直接依赖它们的内部实现。
 
 一个插件可以包含多个 Dispatcher 或 Provider，但每个具体组件只承担一种组件职责。
-不要让同一个类同时继承 `WidgetDispatcher` 和 `WidgetProvider`；需要同时提供两种能力时，
+不要让同一个类同时继承 `PluginDispatcher` 和 `PluginProvider`；需要同时提供两种能力时，
 应注册两个独立的组件实例，由插件入口负责创建和注册它们。
 
 Dispatcher 示例：
 
 ```kotlin
-import com.eva_cli.core.widgets.dispatcher.WidgetDispatcher
+import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
 import com.eva_cli.core.widgets.event.Event
 
-class ChatDispatcher : WidgetDispatcher() {
+class ChatDispatcher : PluginDispatcher() {
     override val name = "Chat Dispatcher"
     override val desc = "Dispatches chat events"
     override val topic = "/Chat"
@@ -189,10 +189,10 @@ Provider 示例：
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
 import com.eva_cli.core.widgets.provider.Provider
-import com.eva_cli.core.widgets.provider.WidgetProvider
+import com.eva_cli.core.widgets.provider.PluginProvider
 import kotlin.uuid.Uuid
 
-class ChatProvider : WidgetProvider() {
+class ChatProvider : PluginProvider() {
     override val id = Uuid.random()
     override val name = "Chat Provider"
     override val desc = "Handles chat events"
@@ -208,9 +208,9 @@ class ChatProvider : WidgetProvider() {
 }
 ```
 
-`WidgetProvider` 已经包含 `Provider` 的宿主生命周期契约，具体 Provider 仍需实现自己的
+`PluginProvider` 已经包含 `Provider` 的宿主生命周期契约，具体 Provider 仍需实现自己的
 元数据、事件处理和输出回调。若后续提供输入、输出或其他专用 Provider 基类，具体实现应
-继承职责最接近的一个基类，不需要重复继承 `WidgetProvider`。
+继承职责最接近的一个基类，不需要重复继承 `PluginProvider`。
 
 插件入口实现 `PluginEntry`，通过 `providers` 和 `dispatchers` 提供组件列表，未提供的
 组件种类默认为空列表。同一入口实例始终持有同一组组件实例；宿主负责注册、绑定回调及
@@ -319,7 +319,7 @@ Android/iOS 当前的三个 API 均明确抛出 `UnsupportedOperationException`�
 变更串行执行。Android/iOS 当前沿用 `PlugManager` 的未支持异常。
 该方法仅负责加载阶段的回滚；后续 `Booter.start()` 失败时的调度树清理仍由运行时负责。
 
-`Booter.start()` 将已加载插件中唯一 `topic == "/"` 的 `WidgetDispatcher` 作为
+`Booter.start()` 将已加载插件中唯一 `topic == "/"` 的 `PluginDispatcher` 作为
 根调度器，直接启动该实例；宿主不内置 RootDispatcher，也不依赖组件名称或具体实现类型。
 根节点缺失或重复时，在启动任何组件前抛出 `IllegalStateException`。
 根调度器负责扫描子节点、绑定回调并启动整棵树，`Booter` 不参与事件调度。
@@ -334,8 +334,8 @@ val children = PlugManager.findChildDispatchers("/Chat")
 val topLevel = PlugManager.findChildDispatchers("/")
 ```
 
-`findProviders(topic)` 返回已加载插件中 topic 完全匹配的 `WidgetProvider` 列表。
-`findChildDispatchers(topic)` 返回直接子级的 `WidgetDispatcher` 列表：查询 `/Chat`
+`findProviders(topic)` 返回已加载插件中 topic 完全匹配的 `PluginProvider` 列表。
+`findChildDispatchers(topic)` 返回直接子级的 `PluginDispatcher` 列表：查询 `/Chat`
 可匹配 `/Chat/Search`，不会匹配 `/Chat`、`/Chat/Search/Web` 或 `/Chatty/Search`。
 查询根路径 `/` 可匹配 `/Chat`，根节点自身不属于子级。
 

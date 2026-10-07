@@ -1,7 +1,7 @@
 package com.eva_cli.core.widgets.plug
 
-import com.eva_cli.core.widgets.dispatcher.WidgetDispatcher
-import com.eva_cli.core.widgets.provider.WidgetProvider
+import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
+import com.eva_cli.core.widgets.provider.PluginProvider
 
 // 当前宿主支持的 .eva 发布包格式。
 const val CURRENT_PLUGIN_FORMAT_VERSION: Int = 1
@@ -37,8 +37,8 @@ data class LoadedPlugin(
     val manifest: PluginManifest,
     val directory: String,
     val entry: PluginEntry,
-    val providers: List<WidgetProvider>,
-    val dispatchers: List<WidgetDispatcher>,
+    val providers: List<PluginProvider>,
+    val dispatchers: List<PluginDispatcher>,
 )
 
 object PlugManager {
@@ -54,7 +54,7 @@ object PlugManager {
      * 首尾空白路径段、.、..、反斜杠或控制字符，否则抛出 [IllegalArgumentException]。
      * Android/iOS 当前与 [loadedList] 一样不支持查询。
      */
-    fun findProviders(topic: String): List<WidgetProvider> {
+    fun findProviders(topic: String): List<PluginProvider> {
         require(isValidTopic(topic)) { "topic 不是规范的绝对路径：$topic" }
         return loadedList.flatMap { plugin -> plugin.providers.filter { it.topic == topic } }
     }
@@ -65,7 +65,7 @@ object PlugManager {
      * 返回原组件实例的列表快照，顺序为插件 ID、插件内声明顺序，包含未启用的组件。
      * 不注册或启动组件；Android/iOS 当前与 [loadedList] 一样不支持查询。
      */
-    fun findChildDispatchers(topic: String): List<WidgetDispatcher> {
+    fun findChildDispatchers(topic: String): List<PluginDispatcher> {
         require(isValidTopic(topic)) { "topic 不是规范的绝对路径：$topic" }
         return loadedList.flatMap { plugin ->
             plugin.dispatchers.filter { dispatcher ->

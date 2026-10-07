@@ -1,7 +1,7 @@
 package com.eva_cli.core.widgets.plug
 
-import com.eva_cli.core.widgets.dispatcher.WidgetDispatcher
-import com.eva_cli.core.widgets.provider.WidgetProvider
+import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
+import com.eva_cli.core.widgets.provider.PluginProvider
 
 /**
  * 插件代码入口；[Plugin] 保存安装信息，[PluginManifest] 描述发布产物。
@@ -11,9 +11,9 @@ import com.eva_cli.core.widgets.provider.WidgetProvider
  * 并调用组件的 start/stop；读取这些属性不会启动组件。
  */
 interface PluginEntry {
-    val providers: List<WidgetProvider>
+    val providers: List<PluginProvider>
         get() = emptyList()
 
-    val dispatchers: List<WidgetDispatcher>
+    val dispatchers: List<PluginDispatcher>
         get() = emptyList()
 }
