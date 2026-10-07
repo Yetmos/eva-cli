@@ -3,8 +3,8 @@
 `.eva` 使用 ZIP 格式，解压后直接成为一个可用 Android Studio 或 IntelliJ IDEA 打开的标准 KMP 工程。
 源码、构建配置、插件清单和公共资源位于工程根目录，预编译产物统一放在 `prebuilt/`。
 PC 加载 JVM JAR，Android 加载 DEX，iOS 在构建时选择 KLIB 或源码集成。
-以下内容是发布格式与接入流程的设计约定。Echo 示例已实现 JVM `.eva` 打包和独立源码重建；
-正式宿主安装器、Android 打包及 iOS 构建接入仍需后续实现。发布包仅需包含所声明平台的产物。
+以下内容是发布格式与接入流程的设计约定。JVM 宿主已支持本地 `.eva` 校验、解压和安装；
+Android 打包、iOS 构建接入以及运行时 JAR 加载仍需后续实现。发布包仅需包含所声明平台的产物。
 
 ## 发布包结构
 
@@ -222,6 +222,18 @@ class ChatProvider : WidgetProvider() {
 
 当前仓库中的扫描、备份和恢复流程仍在实现中；上述继承约定定义的是插件 API 边界，不能替代
 宿主的组件注册和运行时调度实现。
+
+## JVM 本地安装
+
+JVM 宿主可通过 `PlugManager.installPlugin(PluginSource.File(uri, sha256))` 安装本地发布包。
+安装器会先计算可选的 SHA-256 摘要，再将 ZIP 解压到 `Plugins` 目录下的临时目录，读取并校验
+根目录 `plugin.json`，确认 `formatVersion` 和 `apiVersion` 均为当前版本、声明了 JVM 产物，
+并检查 `minJavaVersion`、`artifact` 文件和 `entryClass` 类文件存在。校验成功后，目录会原子移动到
+`Plugins/<id>/<version>`；相同清单已经安装时操作幂等，目标目录存在但清单不一致会失败。
+ZIP 中的绝对路径、父目录跳转和重复路径会被拒绝，失败时临时目录会清理。
+
+URL 和 Git 来源当前会明确抛出 `UnsupportedOperationException`。Android 和 iOS 保留相同 API，
+但本地安装器尚未接入各自的平台运行时。
 
 ## 平台接入规则
 
