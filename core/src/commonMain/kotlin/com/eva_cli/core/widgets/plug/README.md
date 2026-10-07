@@ -293,7 +293,7 @@ val unloaded = PlugManager.unloadPlugin("com.example.echo")
 安装路径、清单、产物及依赖路径中的符号链接会被拒绝。
 
 这三个 API 管理加载记录和加载器资源。组件的 topic 注册、事件回调绑定、`start/stop`
-由宿主运行时负责；当前不会自动接入 `RootDispatcher`。调用方停止组件并移除引用后再释放，
+由宿主运行时负责；`Booter.start()` 从已加载组件中选择根调度器并启动。调用方停止组件并移除引用后再释放，
 关闭 ClassLoader 不会强制终止插件线程，也不保证 JVM 立即回收已有类或外部仍持有的对象。
 关闭加载器报错时也会移除登记，避免继续返回已部分关闭的实例。
 删除已加载版本、恢复快照或改写其 JAR 前，应先释放相关插件；不要与这些磁盘操作并发调用加载 API。
@@ -318,6 +318,13 @@ Android/iOS 当前的三个 API 均明确抛出 `UnsupportedOperationException`�
 此方法执行同步文件 I/O，应在后台线程、组件启动前调用，与安装、加载、释放及运行目录
 变更串行执行。Android/iOS 当前沿用 `PlugManager` 的未支持异常。
 该方法仅负责加载阶段的回滚；后续 `Booter.start()` 失败时的调度树清理仍由运行时负责。
+
+`Booter.start()` 将已加载插件中唯一 `topic == "/"` 的 `WidgetDispatcher` 作为
+RootDispatcher，直接启动该实例；不依赖组件名称或内置 `RootDispatcher` 类型。
+根节点缺失或重复时，在启动任何组件前抛出 `IllegalStateException`。
+根调度器负责扫描子节点、绑定回调并启动整棵树，`Booter` 不参与事件调度。
+重复启动前须先停止；启动失败时保留根引用，调用方须执行 `Booter.stop()` 清理后再重试。
+`stop()` 成功后释放根引用，未启动时停止为空操作。生命周期操作须串行执行。
 
 ## 按 topic 查询组件
 
@@ -354,7 +361,7 @@ topic 区分大小写，必须是以 `/` 开头的规范路径；根路径允许
 同一 topic 可以有多个不同 ID 的 Provider。两个扫描方法分别更新各自映射，不构成整棵树的事务。
 
 扫描应在启动前或停止后串行调用。组件的 `start/stop` 和回调绑定由生命周期流程处理，
-运行中的组件移除、热更新和全树冲突检查尚未接入。当前 `RootDispatcher.topic` 仍为 `/Root`，
+运行中的组件移除、热更新和全树冲突检查尚未接入。根调度器使用 `/` topic，
 扫描不会自动修改根路径或为只有 Provider 的 topic 创建 Dispatcher。
 
 ## 卸载已安装插件

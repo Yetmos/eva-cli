@@ -1,13 +1,17 @@
 package com.eva_cli.core.widgets.plug
 
+import com.eva_cli.core.runtime.Booter
 import com.eva_cli.core.runtime.Plugin as RuntimePlugin
 import com.eva_cli.core.widgets.dispatcher.BaseDispatcher
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
 import com.eva_cli.core.widgets.provider.Provider
+import com.eva_cli.testplugins.BootDispatcher
+import com.eva_cli.testplugins.BootEntry
 import com.eva_cli.testplugins.ConstructorFailureEntry
 import com.eva_cli.testplugins.DispatchersFailureEntry
 import com.eva_cli.testplugins.DuplicateIdsEntry
+import com.eva_cli.testplugins.DuplicateRootsEntry
 import com.eva_cli.testplugins.HookEntry
 import com.eva_cli.testplugins.LoadingDispatcher
 import com.eva_cli.testplugins.LoadingEntry
@@ -52,9 +56,111 @@ import kotlin.uuid.Uuid
 object LoadingFixtureHooks {
     @Volatile
     var onConstruct: (() -> Unit)? = null
+
+    var onLifecycle: ((String, String) -> Unit)? = null
 }
 
 class PlugManagerLoadingJvmTest {
+    @Test
+    fun booterStartsTheLoadedRootAndDelegatesLifecycleToItsTree() = withRuntimeRoot { root ->
+        writePlugin(root, entry = BootEntry::class.java)
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+        val child = loaded.dispatchers[0]
+        val dispatcher = loaded.dispatchers[1]
+        val events = mutableListOf<String>()
+        LoadingFixtureHooks.onLifecycle = { topic, action -> events.add("$topic:$action") }
+
+        runBlocking {
+            Booter.start()
+            assertEquals(listOf("/:restore", "/Child:restore", "/Child:start", "/:start"), events)
+            assertSame(child, dispatcher.dispatchers.values.single())
+            assertNotNull(child.feedUp)
+            assertNull(dispatcher.feedUp)
+            assertFailsWith<IllegalStateException> { Booter.start() }
+            assertEquals(4, events.size)
+
+            events.clear()
+            Booter.backup()
+            assertEquals(listOf("/:backup", "/Child:backup"), events)
+            events.clear()
+            Booter.restore()
+            assertEquals(listOf("/:restore"), events)
+
+            events.clear()
+            Booter.stop()
+            assertEquals(listOf("/:backup", "/Child:backup", "/Child:stop", "/:stop"), events)
+            Booter.stop()
+            assertEquals(4, events.size)
+            assertFailsWith<IllegalStateException> { Booter.backup() }
+            assertFailsWith<IllegalStateException> { Booter.restore() }
+
+            events.clear()
+            Booter.start()
+            assertEquals(listOf("/:restore", "/Child:restore", "/Child:start", "/:start"), events)
+        }
+    }
+
+    @Test
+    fun booterRejectsMissingRootWithoutLoadingInstalledPlugins() = withRuntimeRoot { root ->
+        writePlugin(root, entry = BootEntry::class.java)
+        writePlugin(root, id = "com.example.other")
+        val other = PlugManager.loadPlugin("com.example.other", VERSION)
+
+        val failure = assertFailsWith<IllegalStateException> { runBlocking { Booter.start() } }
+
+        assertTrue(failure.message.orEmpty().contains("实际找到 0 个"))
+        assertEquals(listOf(other), PlugManager.loadedList)
+        PlugManager.unloadPlugin("com.example.other")
+        PlugManager.loadPlugin(ID, VERSION)
+        runBlocking { Booter.start() }
+    }
+
+    @Test
+    fun booterRejectsMultipleRootsBeforeStartingAnyComponents() {
+        for (samePlugin in listOf(true, false)) {
+            withRuntimeRoot { root ->
+                writePlugin(root, entry = if (samePlugin) DuplicateRootsEntry::class.java else BootEntry::class.java)
+                PlugManager.loadPlugin(ID, VERSION)
+                if (!samePlugin) {
+                    writePlugin(root, id = "com.example.other", entry = BootEntry::class.java)
+                    PlugManager.loadPlugin("com.example.other", VERSION)
+                }
+                LoadingFixtureHooks.onLifecycle = { _, _ -> error("Conflicting roots must not be started") }
+
+                val failure = assertFailsWith<IllegalStateException> { runBlocking { Booter.start() } }
+
+                assertTrue(failure.message.orEmpty().contains("实际找到 2 个"))
+            }
+        }
+    }
+
+    @Test
+    fun booterRetainsAFailedRootForCleanupAndAllowsRetryAfterStopping() = withRuntimeRoot { root ->
+        writePlugin(root, entry = BootEntry::class.java)
+        PlugManager.loadPlugin(ID, VERSION)
+        val failure = IllegalStateException("Root start failed after starting its child")
+        val events = mutableListOf<String>()
+        LoadingFixtureHooks.onLifecycle = { topic, action ->
+            events.add("$topic:$action")
+            if (topic == "/" && action == "start") throw failure
+        }
+
+        runBlocking {
+            assertSame(failure, assertFailsWith<IllegalStateException> { Booter.start() })
+            assertEquals(listOf("/:restore", "/Child:restore", "/Child:start", "/:start"), events)
+            assertFailsWith<IllegalStateException> { Booter.start() }
+            assertEquals(4, events.size)
+            events.clear()
+            Booter.stop()
+            assertEquals(listOf("/:backup", "/Child:backup", "/Child:stop", "/:stop"), events)
+
+            LoadingFixtureHooks.onLifecycle = { topic, action -> events.add("$topic:$action") }
+            events.clear()
+            Booter.start()
+            assertEquals(listOf("/:restore", "/Child:restore", "/Child:start", "/:start"), events)
+        }
+    }
+
     @Test
     fun runtimePluginStartWithNoInstallationsDoesNotCreatePluginDirectory() = withRuntimeRoot { root ->
         RuntimePlugin.start()
@@ -770,6 +876,7 @@ class PlugManagerLoadingJvmTest {
         entry,
         LoadingProvider::class.java,
         LoadingDispatcher::class.java,
+        BootDispatcher::class.java,
         // Deliberately bundled API duplicates must still resolve to the host definitions.
         PluginEntry::class.java,
         Event::class.java,
@@ -843,6 +950,8 @@ class PlugManagerLoadingJvmTest {
             block(root)
         } finally {
             LoadingFixtureHooks.onConstruct = null
+            LoadingFixtureHooks.onLifecycle = null
+            runBlocking { Booter.stop() }
             PlugManager.loadedList.forEach { PlugManager.unloadPlugin(it.manifest.id) }
             if (previous == null) System.clearProperty("user.dir") else System.setProperty("user.dir", previous)
             root.toFile().deleteRecursively()

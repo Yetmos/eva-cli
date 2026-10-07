@@ -1,28 +1,43 @@
 package com.eva_cli.core.runtime
 
-import com.eva_cli.core.impl.dispatchers.RootDispatcher
+import com.eva_cli.core.widgets.dispatcher.Dispatcher
+import com.eva_cli.core.widgets.plug.PlugManager
 
 // INFO: 该组件只负责启动 RootDispatcher, RootDispatcher负责启动Dispatcher树，不具备任何事件调度能力
 object Booter {
-    lateinit var root: RootDispatcher
+    private var root: Dispatcher? = null
 
+    /**
+     * 启动已加载插件中唯一 topic=/ 的根调度器，由其负责启动整棵树。
+     * 生命周期操作须串行调用；启动失败时保留根引用，须先 stop 清理再重试。
+     */
     suspend fun start() {
-	    root = RootDispatcher()
-	    root.start()
+        check(root == null) { "RootDispatcher 已启动或尚未清理，请先停止" }
+        val roots = PlugManager.loadedList.flatMap { plugin ->
+            plugin.dispatchers.filter { it.topic == "/" }
+        }
+        check(roots.size == 1) {
+            "已加载插件中必须有且仅有一个 RootDispatcher（topic=/），实际找到 ${roots.size} 个"
+        }
+        val dispatcher = roots.single()
+        root = dispatcher
+        dispatcher.start()
     }
 
-	suspend fun stop() {
-		root.stop()
-	}
+    suspend fun stop() {
+        val dispatcher = root ?: return
+        dispatcher.stop()
+        root = null
+    }
 
-	// INFO: 备份整个决策树
+    // INFO: 备份整个决策树
     suspend fun backup() {
-		root.backupTree()
+        checkNotNull(root) { "RootDispatcher 尚未启动" }.backupTree()
     }
 
-	// INFO: 恢复整个决策树
+    // INFO: 恢复根调度器
     suspend fun restore() {
-		root.restore()
+        checkNotNull(root) { "RootDispatcher 尚未启动" }.restore()
     }
 
 }

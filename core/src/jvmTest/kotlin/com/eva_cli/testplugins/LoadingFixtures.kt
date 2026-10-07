@@ -82,6 +82,39 @@ class OtherScanEntry : PluginEntry {
     override val dispatchers = listOf(LoadingDispatcher("/Room/Beta"))
 }
 
+class BootEntry : PluginEntry {
+    override val dispatchers = listOf(BootDispatcher("/Child"), BootDispatcher("/"))
+}
+
+class DuplicateRootsEntry : PluginEntry {
+    override val dispatchers = listOf(BootDispatcher("/"), BootDispatcher("/"))
+}
+
+class BootDispatcher(override val topic: String) : WidgetDispatcher() {
+    override val name = "Plugin dispatcher"
+    override val desc = "Boot lifecycle fixture"
+    override suspend fun dispatch(event: Event) = Unit
+    override suspend fun receive(event: Event) = Unit
+
+    override suspend fun start() {
+        super.start()
+        LoadingFixtureHooks.onLifecycle?.invoke(topic, "start")
+    }
+
+    override suspend fun stop() {
+        super.stop()
+        LoadingFixtureHooks.onLifecycle?.invoke(topic, "stop")
+    }
+
+    override suspend fun backup() {
+        LoadingFixtureHooks.onLifecycle?.invoke(topic, "backup")
+    }
+
+    override suspend fun restore() {
+        LoadingFixtureHooks.onLifecycle?.invoke(topic, "restore")
+    }
+}
+
 class DuplicateIdsEntry : PluginEntry {
     private val duplicateId = Uuid.random()
     override val providers = listOf(LoadingProvider("/Room", duplicateId), LoadingProvider("/Room", duplicateId))
