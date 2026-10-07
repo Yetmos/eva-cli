@@ -3,7 +3,7 @@
   "id": "com.eva_cli.examples.echo",
   "name": "Echo Plugin",
   "version": "0.1.0-alpha",
-  "apiVersion": 2,
+  "apiVersion": 3,
   "platforms": {
     "jvm": {
       "artifact": "prebuilt/jvm/plugin.jar",

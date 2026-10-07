@@ -45,7 +45,7 @@ kotlin {
         commonMain {
             kotlin.srcDir(generateBuildInfo)
             dependencies {
-                implementation(libs.kotlinx.coroutines.core)
+                api(libs.kotlinx.coroutines.core)
                 implementation(libs.atomicfu)
                 implementation(libs.kermit)
                 implementation(libs.ktor.client.core)

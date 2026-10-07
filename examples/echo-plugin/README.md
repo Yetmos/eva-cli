@@ -74,8 +74,9 @@ Windows PowerShell 使用 `.\gradlew.bat assembleEvaPlugin`。
 源码构建不读取包内 `prebuilt/`，删除该目录后仍能编译、测试并重新打包。
 每次打包仅收集声明的源码和构建输入，JAR 来自当前构建，不复制旧预编译产物或缓存。
 
-独立工程使用 `sdk/plugin-api` 源码模块，内容从宿主现有的事件、Widget、Provider、Dispatcher
-和插件契约复制，不需要本地 Maven 仓库，也不要求 Android SDK。该快照保留宿主当前的
+独立工程使用 `sdk/plugin-api` 源码模块，内容从宿主现有的事件、Widget、WidgetContext、Provider、Dispatcher
+和插件契约复制，不需要本地 Maven 仓库，也不要求 Android SDK。协程依赖随 SDK 暴露，支持 `scope` 和 `Flow`。
+该快照保留宿主当前的
 基础实现和未完成能力，并为 Dispatcher 扫描提供仅用于编译的 `PlugManager` 查询入口；
 在独立 SDK 中调用该入口会抛出 `UnsupportedOperationException`。正式运行仍由宿主提供这些类，
 宿主安装器、加载器和运行时注册表不随插件打包。
@@ -115,7 +116,7 @@ examples/echo-plugin/build/plugin/
 ```
 
 加载测试以宿主的 `PluginEntry` ClassLoader 为共享 API 的来源，并屏蔽测试进程
-classpath 中的示例类，确认入口及 Provider 实际由生成的 JAR 加载。
+classpath 中的示例类，确认入口及 Provider 实际由生成的 JAR 加载，并验证 Context 的共享类型和组件绑定。
 JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 
 解压工程执行相同任务时省略 `:examples:echo-plugin:` 前缀。
@@ -126,10 +127,13 @@ JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 ## 宿主调用约定
 
 1. 读取清单，使用其中的 `entryClass` 创建 `PluginEntry`。
-2. 从 `entry.providers` 取得同一组组件实例，按 `topic` 注册。
+2. 取得入口的 Provider 和 Dispatcher，为同一插件的组件绑定同一个 `WidgetContext`，再按 `topic` 注册。
 3. 绑定 `provider.emit`，调用 `provider.start()`。
 4. 将文本事件传给 `provider.receive(event)`，从回调取得回复。
-5. 结束时调用 `provider.stop()`，解除回调和组件引用，再关闭 ClassLoader。
+5. 结束时停止组件，解除回调和组件引用；卸载时由宿主释放 Context 资源，再关闭 ClassLoader。
+
+正式 JVM 宿主的 `PlugManager.loadPlugin` 自动执行 Context 绑定。上面的手工流程适用于测试宿主；
+`EchoPluginLoadingTest` 使用不访问网络、数据库或文件的测试 Context，Echo 的文本回显行为保持不变。
 
 生命周期方法 `start()`、`stop()` 与 `receive()` 均为挂起函数；宿主须在协程中串行调用。
 未启动、已停止或
@@ -140,10 +144,103 @@ JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 宿主 `Booter` 会从已加载插件中发现并启动它；宿主不再内置 RootDispatcher。
 当前示例仍只有 `/Echo` Provider，完整事件路由和 `/Echo` Dispatcher 后续接入。
 
-当前插件接口为 `apiVersion: 2`：公共属性、生命周期、事件收发和单组件备份恢复由
-`Widget` 声明，Dispatcher 的输出回调由 `feedUp` 改为 `emit`。从 API 1 迁移时，
-将 Provider 的 `start/stop` 实现改为 `suspend`，更新 Dispatcher 回调名称，并使用新版
-API 重新编译、打包后将清单的 `apiVersion` 设为 `2`；仅修改清单无法兼容旧二进制。
+当前插件接口为 `apiVersion: 3`：`Widget` 增加 `context` 和 `attach(context)`，
+`PluginProvider`、`PluginDispatcher` 通过 `BaseWidget` 提供绑定实现。
+从 API 2 迁移时，更新 SDK、重新编译和打包，并将清单的 `apiVersion` 设为 `3`；
+直接实现 `Widget` 的类还需实现这两个成员。组件构造期间不得访问 Context，应在 `start()` 或后续调用中使用。
+从 API 1 迁移还需将 Provider 的 `start/stop` 改为挂起函数，并将 Dispatcher 的 `feedUp` 改为 `emit`。
+仅修改清单不能兼容旧二进制，旧 API 插件会被宿主拒绝。
+
+## 使用宿主能力
+
+组件通过继承的 `context` 访问能力；它是跨平台的 Eva API，不是 Android `Context`。
+同一插件的组件共享 Context，不同插件分别拥有偏好、文件和数据库命名空间。
+公共边界使用 Eva 类型，Ktor 和 DataStore 由宿主实现；插件无需接收宿主的第三方库实例。
+
+例如，在挂起的 `receive()` 中使用网络、偏好和文件：
+
+```kotlin
+import com.eva_cli.core.widgets.context.NetworkRequest
+import com.eva_cli.core.widgets.context.PluginFileArea
+
+val response = context.network.execute(NetworkRequest("https://example.com/data"))
+check(response.status in 200..299)
+context.preferences.put("lastStatus", response.status.toString())
+val lastStatus = context.preferences.get("lastStatus")
+context.files.write("download/data.json", response.body)
+val saved = context.files.read("download/data.json")
+context.files.write("preview.json", saved, PluginFileArea.CACHE)
+```
+
+偏好值为字符串，结构化值由插件自行序列化；`preferences.values` 提供变更 `Flow`。
+文件路径相对于 `DATA`、`CACHE` 或 `RESOURCES`，资源目录只读；不要传绝对路径或 `..`。
+未声明公共资源的插件不能读取 `RESOURCES`。持久数据与安装版本分开保存，卸载加载器不会删除数据。
+
+Room 数据库由插件提供 schema、DAO、生成代码和迁移。宿主管理数据库路径、实例复用与关闭，
+通过 `PluginDatabase` 包装插件自己的 `RoomDatabase`，不向宿主注册 Room schema，也不要求宿主添加 Room 编译器。
+以下代码放在已有 `ChatDatabase` 及其 `buildChatDatabase(path)` 构建函数的插件中：
+
+```kotlin
+import com.eva_cli.core.widgets.context.PluginDatabase
+import com.eva_cli.core.widgets.context.PluginDatabaseFactory
+
+class ChatStore(val room: ChatDatabase) : PluginDatabase {
+    override fun close() = room.close()
+}
+
+// 插件级单例；buildChatDatabase 负责驱动、DAO 实现和迁移配置。
+object ChatStoreFactory : PluginDatabaseFactory<ChatStore> {
+    override fun open(path: String) = ChatStore(buildChatDatabase(path))
+}
+
+// 在组件生命周期方法中调用。
+val store = context.databases.open("chat.db", ChatStoreFactory)
+```
+
+同一数据库名必须重复传入**同一个 factory 实例**，宿主才会返回缓存实例；
+同名使用另一个 factory 会报错。不要在每次调用时创建新的 lambda factory。
+Room 及插件专属运行依赖由插件声明和打包；Echo 本身不引入数据库 schema 或 Room 编译器。
+
+权限申请通过 `context.permissions.check(permission)` / `request(permission)`，结果为
+`GRANTED`、`DENIED` 或 `UNAVAILABLE`。没有交互宿主或平台不支持时返回 `UNAVAILABLE`；
+应用通过 `PlugManager.permissions` 接入当前 UI 的权限桥接，并在 UI 销毁时移除旧桥接。
+这不会自动添加 Android manifest 权限，Android/iOS 的动态加载接入仍未实现。
+
+```kotlin
+import com.eva_cli.core.widgets.context.PermissionResult
+
+val result = context.permissions.request("android.permission.CAMERA")
+if (result == PermissionResult.GRANTED) {
+    // 在支持相机的平台继续业务操作。
+}
+```
+
+组件可用 `context.scope.launch { ... }` 启动任务，并保存自己的 `Job`，在 `stop()` 中取消并等待它结束。
+例如，在组件中观察偏好变化：
+
+```kotlin
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+
+private var settingsJob: Job? = null
+
+override suspend fun start() {
+    check(settingsJob == null)
+    settingsJob = context.scope.launch {
+        context.preferences.values.collect { values -> println(values["theme"]) }
+    }
+}
+
+override suspend fun stop() {
+    settingsJob?.cancelAndJoin()
+    settingsJob = null
+}
+```
+
+这个 scope 属于整个插件，单个组件停止时不要取消共享 scope，也不要关闭共享数据库或网络服务。
+宿主在 `unloadPlugin` 时取消 Context 的任务、关闭其服务后释放加载器；调用方仍须先停止并注销组件。
+这些接口提供能力与资源管理，不是安全沙盒，同进程 JVM 插件仍可自行调用平台 API。
 
 ## 扩展示例
 

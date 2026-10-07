@@ -86,7 +86,7 @@ chat-plugin-1.0.0.eva
   "id": "com.example.chat",
   "name": "Chat Plugin",
   "version": "1.0.0",
-  "apiVersion": 2,
+  "apiVersion": 3,
   "resources": "resources",
   "platforms": {
     "jvm": {
@@ -119,9 +119,11 @@ chat-plugin-1.0.0.eva
 
 `formatVersion` 表示包格式版本，`apiVersion` 表示宿主插件接口版本，
 `version` 表示插件自身的发布版本。插件 ID 在升级时保持稳定。
-当前宿主 API 版本为 `2`，包格式版本仍为 `1`。API 2 将公共组件契约集中到 `Widget`，
-统一挂起的 `start/stop`，并将 Dispatcher 的 `feedUp` 回调更名为 `emit`。
-API 1 插件须迁移源码并使用新版 API 重新编译；宿主会拒绝安装或加载旧 API 插件。
+当前宿主 API 版本为 `3`，包格式版本仍为 `1`。API 3 在 `Widget` 增加 `context` 和
+`attach(context)`，由 `BaseWidget` 提供一次绑定实现，宿主在生命周期调用前绑定插件能力。
+API 2 插件须更新 SDK 后重新编译、打包并修改清单；直接实现 `Widget` 的组件须补齐这两个成员。
+API 1 还须将 Provider 的 `start/stop` 改为挂起函数，并将 Dispatcher 的 `feedUp` 改为 `emit`。
+宿主会拒绝安装或加载旧 API 插件，仅修改清单不能兼容旧二进制。
 清单中的产物、依赖目录、仓库、源码和资源路径均相对于发布包根目录。
 `source.directory` 为 `.`，表示源码工程位于解压后的根目录；`gradleProject` 为 `:`，表示根项目。
 PC、Android 的 `entryClass` 用于反射实例化公开无参入口；
@@ -216,8 +218,8 @@ class ChatProvider : PluginProvider() {
 继承职责最接近的一个基类，不需要重复继承 `PluginProvider`。
 
 插件入口实现 `PluginEntry`，通过 `providers` 和 `dispatchers` 提供组件列表，未提供的
-组件种类默认为空列表。同一入口实例始终持有同一组组件实例；宿主负责注册、绑定回调及
-调用组件的 `start` / `stop`，读取列表不会启动组件。入口类名必须与 `plugin.json` 中
+组件种类默认为空列表。同一入口实例始终持有同一组组件实例；宿主负责绑定 `WidgetContext`、
+注册、绑定回调及调用组件的 `start` / `stop`，读取列表不会启动组件。入口类名必须与 `plugin.json` 中
 对应平台的 `entryClass` 或 `factory` 一致。
 
 仓库内的 `eva-cli/examples/echo-plugin` 提供最小入口、文本回显 Provider 和 JVM 加载测试。
@@ -225,6 +227,46 @@ class ChatProvider : PluginProvider() {
 
 组件扫描已接入已加载插件查询；records 备份恢复和根节点消息路由仍在实现中。
 上述继承约定定义的是插件 API 边界，不能替代宿主的完整运行时调度实现。
+
+## WidgetContext 与宿主能力
+
+`WidgetContext` 位于 `commonMain`，不是 Android `Context`。JVM 加载器为每个插件创建一个 Context，
+在发布加载记录前为该插件的所有 Provider 和 Dispatcher 调用 `attach(context)`。
+组件构造期间访问 `context` 会失败；在 `start()` 及之后的生命周期方法中使用它。
+同一实例可以重复绑定同一个 Context，不能改绑其他 Context。`PluginEntry` 仍须有公开无参构造器。
+
+| 能力 | API | 所有权与边界 |
+| --- | --- | --- |
+| 身份与协程 | `pluginId`、`scope` | ID 来自清单；scope 属于整个已加载插件。 |
+| 网络 | `network.execute(NetworkRequest)` | 宿主使用 Ktor，公共请求/响应不包含 Ktor 类型。 |
+| 偏好 | `preferences.get/put/remove`、`values` | 宿主使用 DataStore；字符串值由插件自行序列化，变更通过 Flow 提供。 |
+| 数据库 | `databases.open(name, factory)` | 插件创建自己的数据库，宿主管理路径、复用和释放。 |
+| 文件 | `files.read/write/delete/list` | 使用相对路径；DATA、CACHE 按插件分开，RESOURCES 只读。 |
+| 权限 | `permissions.check/request` | 由宿主桥接平台权限；返回 GRANTED、DENIED 或 UNAVAILABLE。 |
+
+偏好、数据库和普通文件不放在插件安装版本目录中，升级或卸载加载器后保留。
+`RESOURCES` 指向清单声明的公共资源目录；未声明时不能读取资源。
+文件接口拒绝越界路径和符号链接，但同进程插件仍能自行调用 JVM API，因此 Context 不是安全沙盒。
+
+数据库 factory 返回实现 `PluginDatabase` 的插件对象，可将自身的 `RoomDatabase` 包装其中，
+由其 `close()` 关闭数据库。Room schema、DAO、生成代码、驱动和迁移属于插件，由插件构建和打包；
+宿主不需要导入插件数据库类或添加 Room 编译器。公共 API 不跨加载器传递宿主的 Room 类型。
+同一个数据库名仅允许使用同一个 `PluginDatabaseFactory` 对象，后续调用复用已打开实例；
+同名换用另一个 factory 会报错，应以插件级单例保存 factory，而不是反复创建 lambda。
+同名数据库初始化期间拒绝递归或并发打开；可在初始化完成后重试。factory 在调用线程执行，应在后台调用。
+
+权限服务默认返回 `UNAVAILABLE`；应用可为 `PlugManager.permissions` 设置自己的 `PluginPermissions`
+实现，将请求转交当前 UI 生命周期。Context 动态访问该服务，宿主应在 UI 销毁时移除旧桥接。
+Android 权限仍须由宿主 manifest 声明；此接口没有启用尚未完成的 Android/iOS 插件加载。
+
+单个组件 `stop()` 应取消并等待自己创建的 Job，不能取消整个 `context.scope` 或关闭共享数据库、网络服务。
+调用方停止并注销所有组件后执行 `unloadPlugin`，宿主释放 Context 的任务和服务，再关闭加载器。
+应用持有的权限桥接由应用管理。释放加载器不删除持久数据，也不会终止插件自行创建且未纳入 scope 的线程。
+同步卸载必须由插件 scope 和数据库 factory 外的宿主代码执行；从内部卸载会立即报错并保留加载记录。
+
+网络、偏好、文件及 Room 包装示例见 `eva-cli/examples/echo-plugin/README.md`。
+发布的独立 SDK 必须包含 `BaseWidget.kt`、`widgets/context/*.kt` 和已有协程依赖，
+以便解析 `CoroutineScope` 与 `Flow`。插件仍须重新编译为 API 3，JAR 中不包含宿主 API 类。
 
 ## JVM 本地安装
 
@@ -273,18 +315,18 @@ val providers = loaded.providers
 val dispatchers = loaded.dispatchers
 val snapshot = PlugManager.loadedList
 
-// 使用组件的运行时完成停止、解绑及移除组件引用后，释放加载器。
+// 使用组件的运行时完成停止、解绑及移除组件引用后，释放 Context 和加载器。
 val unloaded = PlugManager.unloadPlugin("com.example.echo")
 ```
 
 `loadPlugin(id, version)` 返回 `LoadedPlugin`，包含清单、安装目录绝对路径、`PluginEntry`
-实例及加载时读取的 Provider、Dispatcher 列表快照。每个插件 ID 在进程内只加载一个版本；
+实例、已绑定的 `context` 及加载时读取的 Provider、Dispatcher 列表快照。每个插件 ID 在进程内只加载一个版本；
 同一版本和安装路径重复调用会返回同一个对象。切换版本或运行目录前，应先释放原实例。
-入口构造、组件读取或校验失败时不发布加载记录，并关闭此次创建的加载器。
+入口构造、组件读取、校验或 Context 绑定失败时不发布加载记录，并释放此次创建的 Context 和加载器。
 
 `loadedList` 返回按插件 ID 排序的已加载实例列表快照，不扫描磁盘，也不会自动加载插件。
 后续加载、释放不会修改旧列表；列表中的入口和组件仍是同一批运行时对象。
-`unloadPlugin(id)` 关闭加载器并移除记录，成功返回 `true`，未加载返回 `false`。
+`unloadPlugin(id)` 释放 Context、关闭加载器并移除记录，成功返回 `true`，未加载返回 `false`。
 释放后可以重新加载得到新的入口实例；安装文件保留，删除安装文件仍使用 `uninstallPlugin`。
 
 加载器读取主 JAR 和清单 `platforms.jvm.dependencies` 目录中的依赖 JAR，
@@ -295,10 +337,10 @@ val unloaded = PlugManager.unloadPlugin("com.example.echo")
 含这些隐式类路径声明的 JAR 会被拒绝，依赖应放在明确声明的目录中。
 安装路径、清单、产物及依赖路径中的符号链接会被拒绝。
 
-这三个 API 管理加载记录和加载器资源。组件的 topic 注册、事件回调绑定、`start/stop`
+这三个 API 管理加载记录、Context 绑定和资源释放。组件的 topic 注册、事件回调绑定、`start/stop`
 由宿主运行时负责；`Booter.start()` 从已加载组件中选择根调度器并启动。调用方停止组件并移除引用后再释放，
 关闭 ClassLoader 不会强制终止插件线程，也不保证 JVM 立即回收已有类或外部仍持有的对象。
-关闭加载器报错时也会移除登记，避免继续返回已部分关闭的实例。
+Context 和加载器均会尝试释放；清理报错时聚合异常并移除登记，避免继续返回已部分关闭的实例。
 删除已加载版本、恢复快照或改写其 JAR 前，应先释放相关插件；不要与这些磁盘操作并发调用加载 API。
 
 非法 ID/版本抛出 `IllegalArgumentException`；未安装、版本冲突、正在加载/释放或加载失败时

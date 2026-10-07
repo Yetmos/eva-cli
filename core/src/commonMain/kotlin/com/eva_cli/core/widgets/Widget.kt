@@ -2,9 +2,15 @@ package com.eva_cli.core.widgets
 
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.context.WidgetContext
 import kotlin.uuid.Uuid
 
 interface Widget {
+    val context: WidgetContext
+
+    /** 宿主在首次生命周期调用前绑定，同一实例仅可绑定同一个 Context。 */
+    fun attach(context: WidgetContext)
+
     val id: Uuid
     val name: String
     val desc: String

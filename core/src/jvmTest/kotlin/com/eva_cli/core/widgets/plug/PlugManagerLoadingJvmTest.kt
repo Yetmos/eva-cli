@@ -6,6 +6,11 @@ import com.eva_cli.core.widgets.dispatcher.BaseDispatcher
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
 import com.eva_cli.core.widgets.provider.Provider
+import com.eva_cli.core.widgets.context.PermissionResult
+import com.eva_cli.core.widgets.context.PluginDatabase
+import com.eva_cli.core.widgets.context.PluginDatabaseFactory
+import com.eva_cli.core.widgets.context.PluginPermissions
+import com.eva_cli.core.widgets.context.WidgetContext
 import com.eva_cli.testplugins.BootDispatcher
 import com.eva_cli.testplugins.BootEntry
 import com.eva_cli.testplugins.ConstructorFailureEntry
@@ -38,6 +43,12 @@ import java.util.jar.JarOutputStream
 import java.util.jar.Manifest
 import javax.tools.ToolProvider
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -62,6 +73,111 @@ object LoadingFixtureHooks {
 
 class PlugManagerLoadingJvmTest {
     @Test
+    fun unloadFromPluginScopeFailsWithoutRemovingOrClosingItsRegistration() = withRuntimeRoot { root ->
+        writePlugin(root)
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+        runBlocking {
+            withTimeout(5_000) {
+                loaded.context.scope.async {
+                    assertFailsWith<IllegalStateException> { PlugManager.unloadPlugin(ID) }
+                }.await()
+            }
+        }
+        assertSame(loaded, PlugManager.loadedList.single())
+        assertTrue(loaded.context.scope.isActive)
+        assertTrue(PlugManager.unloadPlugin(ID))
+    }
+
+    @Test
+    fun loaderBindsOneContextPerPluginBeforeLifecycleAndRejectsRebinding() = withRuntimeRoot { root ->
+        writePlugin(root)
+        writePlugin(root, id = "com.example.other")
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+        val other = PlugManager.loadPlugin("com.example.other", VERSION)
+        val provider = loaded.providers.single()
+
+        assertEquals(ID, loaded.context.pluginId)
+        assertSame(loaded.context, provider.context)
+        assertSame(loaded.context, loaded.dispatchers.single().context)
+        assertNotSame(loaded.context, other.context)
+        provider.attach(loaded.context)
+        assertFailsWith<IllegalStateException> { provider.attach(other.context) }
+        assertSame(loaded.context, provider.context)
+        assertSame(WidgetContext::class.java, loaded.entry.javaClass.classLoader.loadClass(WidgetContext::class.java.name))
+    }
+
+    @Test
+    fun contextSurvivesReloadThroughPersistentStorageAndCancelsTasksOnUnload() = withRuntimeRoot { root ->
+        writePlugin(root)
+        val context = PlugManager.loadPlugin(ID, VERSION).context
+        var taskFinished = false
+        val task = context.scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            try { awaitCancellation() } finally { taskFinished = true }
+        }
+        runBlocking {
+            context.preferences.put("theme", "dark")
+            context.files.write("nested/note.txt", "saved".encodeToByteArray())
+        }
+
+        assertTrue(PlugManager.unloadPlugin(ID))
+        assertFalse(context.scope.isActive)
+        assertTrue(task.isCompleted)
+        assertTrue(taskFinished)
+        val reloaded = PlugManager.loadPlugin(ID, VERSION).context
+        assertNotSame(context, reloaded)
+        runBlocking {
+            assertEquals("dark", reloaded.preferences.get("theme"))
+            assertEquals("saved", reloaded.files.read("nested/note.txt").decodeToString())
+        }
+    }
+
+    @Test
+    fun databaseCloseFailureStillClosesLoaderAndAllowsReload() = withRuntimeRoot { root ->
+        writePlugin(root)
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+        val loader = assertIs<URLClassLoader>(loaded.entry.javaClass.classLoader)
+        val closed = mutableListOf<String>()
+        for (name in listOf("first.db", "second.db")) {
+            loaded.context.databases.open(name, PluginDatabaseFactory {
+                object : PluginDatabase {
+                    override fun close() {
+                        closed.add(name)
+                        error("close $name")
+                    }
+                }
+            })
+        }
+
+        assertFailsWith<IllegalStateException> { PlugManager.unloadPlugin(ID) }
+        assertEquals(setOf("first.db", "second.db"), closed.toSet())
+        assertNull(loader.findResource("loading-fixture.txt"))
+        assertTrue(PlugManager.loadedList.isEmpty())
+        assertFalse(loaded.context.scope.isActive)
+        assertNotSame(loaded.context, PlugManager.loadPlugin(ID, VERSION).context)
+    }
+
+    @Test
+    fun loadedContextUsesTheCurrentPermissionHostAfterUiReplacement() = withRuntimeRoot { root ->
+        writePlugin(root)
+        val context = PlugManager.loadPlugin(ID, VERSION).context
+        fun host(result: PermissionResult) = object : PluginPermissions {
+            override suspend fun check(permission: String) = result
+            override suspend fun request(permission: String) = result
+        }
+        val previous = PlugManager.permissions
+        try {
+            runBlocking {
+                PlugManager.permissions = host(PermissionResult.DENIED)
+                assertEquals(PermissionResult.DENIED, context.permissions.check("camera"))
+                PlugManager.permissions = host(PermissionResult.GRANTED)
+                assertEquals(PermissionResult.GRANTED, context.permissions.request("camera"))
+            }
+        } finally {
+            PlugManager.permissions = previous
+        }
+    }
+
+    @Test
     fun booterStartsTheLoadedRootAndDelegatesLifecycleToItsTree() = withRuntimeRoot { root ->
         writePlugin(root, entry = BootEntry::class.java)
         val loaded = PlugManager.loadPlugin(ID, VERSION)
@@ -69,6 +185,8 @@ class PlugManagerLoadingJvmTest {
         val dispatcher = loaded.dispatchers[1]
         val events = mutableListOf<String>()
         LoadingFixtureHooks.onLifecycle = { topic, action -> events.add("$topic:$action") }
+        assertSame(loaded.context, dispatcher.context)
+        assertSame(loaded.context, child.context)
 
         runBlocking {
             Booter.start()
@@ -881,6 +999,7 @@ class PlugManagerLoadingJvmTest {
         // Deliberately bundled API duplicates must still resolve to the host definitions.
         PluginEntry::class.java,
         Event::class.java,
+        WidgetContext::class.java,
     )
 
     private fun writeJar(

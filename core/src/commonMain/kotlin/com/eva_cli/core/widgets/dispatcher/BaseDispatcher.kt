@@ -1,12 +1,13 @@
 package com.eva_cli.core.widgets.dispatcher
 
 import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.BaseWidget
 import com.eva_cli.core.widgets.provider.Provider
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.plug.PlugManager
 import kotlin.uuid.Uuid
 
-abstract class BaseDispatcher: Dispatcher{
+abstract class BaseDispatcher: BaseWidget(), Dispatcher{
     override val id: Uuid = Uuid.random()
     override var enable: Boolean = true
     override var records: List<EventRecord> = emptyList()

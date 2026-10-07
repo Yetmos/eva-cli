@@ -2,6 +2,8 @@ package com.eva_cli.core.widgets.plug
 
 import com.eva_cli.core.runtime.Configure
 import com.eva_cli.core.utils.file.FileUtils
+import com.eva_cli.core.widgets.context.JvmWidgetContext
+import com.eva_cli.core.widgets.context.PluginPermissions
 import java.lang.reflect.Modifier
 import java.net.URL
 import java.net.URLClassLoader
@@ -13,7 +15,17 @@ import java.util.Enumeration
 import java.util.jar.Attributes
 import java.util.jar.JarFile
 
-private data class PluginRegistration(val plugin: LoadedPlugin, val loader: PluginClassLoader)
+private data class PluginRegistration(
+    val plugin: LoadedPlugin,
+    val loader: PluginClassLoader,
+    val context: JvmWidgetContext,
+)
+
+/** 每次申请解析当前 UI 桥接，Activity 重建后已有插件不会继续持有旧 Activity。 */
+private object HostPluginPermissions : PluginPermissions {
+    override suspend fun check(permission: String) = PlugManager.permissions.check(permission)
+    override suspend fun request(permission: String) = PlugManager.permissions.request(permission)
+}
 
 private val registryLock = Any()
 private val loadedPlugins = mutableMapOf<String, PluginRegistration>()
@@ -43,6 +55,7 @@ internal actual fun loadLocalPlugin(id: String, version: String): LoadedPlugin {
     }
 
     var loader: PluginClassLoader? = null
+    var context: JvmWidgetContext? = null
     try {
         for (directory in listOf(runtimeDirectory, pluginsDirectory, pluginDirectory, versionDirectory)) {
             check(Files.isDirectory(directory, NOFOLLOW_LINKS)) {
@@ -79,18 +92,29 @@ internal actual fun loadLocalPlugin(id: String, version: String): LoadedPlugin {
             PluginEntry::class.java.isAssignableFrom(entryClass)
         ) { "插件入口必须是公开的具体 PluginEntry 实现：${jvm.entryClass}" }
         val entry = entryClass.asSubclass(PluginEntry::class.java).getConstructor().newInstance()
+        val providers = entry.providers.toList()
+        val dispatchers = entry.dispatchers.toList()
+        val pluginContext = JvmWidgetContext(id, runtimeDirectory, versionDirectory, manifest.resources, HostPluginPermissions)
+        context = pluginContext
+        for (widget in providers + dispatchers) widget.attach(pluginContext)
         val plugin = LoadedPlugin(
             manifest = manifest,
             directory = versionDirectory.toString(),
             entry = entry,
-            providers = entry.providers.toList(),
-            dispatchers = entry.dispatchers.toList(),
+            providers = providers,
+            dispatchers = dispatchers,
+            context = pluginContext,
         )
         synchronized(registryLock) {
-            loadedPlugins[id] = PluginRegistration(plugin, pluginLoader)
+            loadedPlugins[id] = PluginRegistration(plugin, pluginLoader, pluginContext)
         }
         return plugin
     } catch (error: Throwable) {
+        try {
+            context?.close()
+        } catch (closeError: Throwable) {
+            error.addSuppressed(closeError)
+        }
         try {
             loader?.close()
         } catch (closeError: Throwable) {
@@ -108,11 +132,23 @@ internal actual fun unloadLocalPlugin(id: String): Boolean {
     val registration = synchronized(registryLock) {
         check(id !in changingPlugins) { "插件正在加载或释放：$id" }
         val existing = loadedPlugins[id] ?: return false
+        existing.context.checkCanClose()
         changingPlugins.add(id)
         existing
     }
     try {
-        registration.loader.close()
+        var failure: Throwable? = null
+        try {
+            registration.context.close()
+        } catch (error: Throwable) {
+            failure = error
+        }
+        try {
+            registration.loader.close()
+        } catch (error: Throwable) {
+            if (failure == null) failure = error else failure.addSuppressed(error)
+        }
+        failure?.let { throw it }
         return true
     } catch (error: Exception) {
         throw IllegalStateException("释放插件加载资源失败：$id", error)

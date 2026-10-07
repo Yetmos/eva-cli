@@ -2,12 +2,16 @@ package com.eva_cli.core.widgets.plug
 
 import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
 import com.eva_cli.core.widgets.provider.PluginProvider
+import com.eva_cli.core.widgets.context.PluginPermissions
+import com.eva_cli.core.widgets.context.UnavailablePluginPermissions
+import com.eva_cli.core.widgets.context.WidgetContext
+import kotlin.concurrent.Volatile
 
 // 当前宿主支持的 .eva 发布包格式。
 const val CURRENT_PLUGIN_FORMAT_VERSION: Int = 1
 
 // 当前宿主公开的插件 API 版本。
-const val CURRENT_PLUGIN_API_VERSION: Int = 2
+const val CURRENT_PLUGIN_API_VERSION: Int = 3
 
 // 安装插件时发现包内容不满足发布规范。
 class PluginInstallException(message: String, cause: Throwable? = null) : IllegalArgumentException(message, cause)
@@ -39,9 +43,14 @@ data class LoadedPlugin(
     val entry: PluginEntry,
     val providers: List<PluginProvider>,
     val dispatchers: List<PluginDispatcher>,
+    val context: WidgetContext,
 )
 
 object PlugManager {
+
+    /** 由宿主 UI 安装权限桥接；销毁时恢复默认值。CLI 默认不提供交互权限申请。 */
+    @Volatile
+    var permissions: PluginPermissions = UnavailablePluginPermissions
 
     /** 当前进程已加载插件的只读快照，按 ID 排序；Android/iOS 当前不支持查询。 */
     val loadedList: List<LoadedPlugin>
@@ -102,7 +111,7 @@ object PlugManager {
     }
 
     /**
-     * 加载已安装的插件入口及其组件，不注册或启动组件。
+     * 加载已安装的插件入口及其组件，绑定插件专属 Context，不注册或启动组件。
      * 同一 ID 只允许加载一个版本；相同版本和安装目录重复加载返回同一实例。
      * id/version 无效时抛出 [IllegalArgumentException]；冲突或加载失败时抛出
      * [IllegalStateException]。同一 ID 正在加载或卸载时拒绝重入与并发操作。
@@ -111,7 +120,8 @@ object PlugManager {
     fun loadPlugin(id: String, version: String): LoadedPlugin = loadLocalPlugin(id, version)
 
     /**
-     * 释放插件加载器并移除已加载记录；成功返回 true，未加载返回 false。
+     * 取消并等待 Context 任务，关闭插件数据库、网络客户端和加载器，移除已加载记录。
+     * 成功返回 true，未加载返回 false；应在宿主后台线程调用，不得从该插件 scope 内调用。
      * 宿主须先停止并注销组件，释放对入口及组件的引用；此方法不调用组件 stop。
      * 卸载、替换或恢复插件文件前也应先调用本方法。
      * id 无效时抛出 [IllegalArgumentException]，资源释放失败或同一 ID 正在变更时

@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
 class PlugManagerJvmTest {
     @Test
     fun rejectsUnsupportedPluginApiVersionsBeforeInstalling() = withRuntimeRoot { root ->
-        for (apiVersion in listOf(1, CURRENT_PLUGIN_API_VERSION + 1)) {
+        for (apiVersion in listOf(1, 2, CURRENT_PLUGIN_API_VERSION + 1)) {
             val archive = createEva(root.resolve("api-$apiVersion.eva"), apiVersion = apiVersion)
 
             val failure = assertFailsWith<PluginInstallException> {

@@ -1,6 +1,12 @@
 package com.eva_cli.examples.echo
 
 import com.eva_cli.core.widgets.Widget
+import com.eva_cli.core.widgets.context.PluginDatabases
+import com.eva_cli.core.widgets.context.PluginFiles
+import com.eva_cli.core.widgets.context.PluginNetwork
+import com.eva_cli.core.widgets.context.PluginPreferences
+import com.eva_cli.core.widgets.context.UnavailablePluginPermissions
+import com.eva_cli.core.widgets.context.WidgetContext
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.plug.PluginEntry
 import com.eva_cli.core.widgets.plug.PluginManifest
@@ -8,10 +14,13 @@ import com.eva_cli.core.widgets.provider.Provider
 import java.io.File
 import java.net.URLClassLoader
 import java.util.jar.JarFile
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -30,7 +39,7 @@ class EchoPluginLoadingTest {
     private suspend fun assertPluginCanExchangeEvents(directory: File) {
         val manifest = Json.decodeFromString<PluginManifest>(directory.resolve("plugin.json").readText())
         assertEquals(1, manifest.formatVersion)
-        assertEquals(2, manifest.apiVersion)
+        assertEquals(3, manifest.apiVersion)
         assertEquals(System.getProperty("eva.echoPlugin.version"), manifest.version)
         val jvm = assertNotNull(manifest.platforms.jvm)
         assertTrue(Runtime.version().feature() >= assertNotNull(jvm.minJavaVersion))
@@ -52,6 +61,8 @@ class EchoPluginLoadingTest {
             }
         }
         URLClassLoader(arrayOf(artifact.toURI().toURL()), hostLoader).use { loader ->
+            assertSame(WidgetContext::class.java, loader.loadClass(WidgetContext::class.java.name))
+            assertSame(PluginNetwork::class.java, loader.loadClass(PluginNetwork::class.java.name))
             val entryClass = loader.loadClass(jvm.entryClass).asSubclass(PluginEntry::class.java)
             assertSame(loader, entryClass.classLoader)
             assertEquals(artifact.canonicalFile, File(entryClass.protectionDomain.codeSource.location.toURI()).canonicalFile)
@@ -63,6 +74,23 @@ class EchoPluginLoadingTest {
             assertSame(loader, provider.javaClass.classLoader)
             assertEquals("/Echo", provider.topic)
             val widget: Widget = provider
+
+            assertFailsWith<IllegalStateException> { widget.context }
+            val pluginScope = CoroutineScope(currentCoroutineContext())
+            val context = object : WidgetContext {
+                override val pluginId = manifest.id
+                override val scope = pluginScope
+                override val permissions = UnavailablePluginPermissions
+                override val network: PluginNetwork get() = error("Echo does not use networking")
+                override val preferences: PluginPreferences get() = error("Echo does not use preferences")
+                override val databases: PluginDatabases get() = error("Echo does not use databases")
+                override val files: PluginFiles get() = error("Echo does not use files")
+            }
+            widget.attach(context)
+            root.attach(context)
+            assertSame(context, widget.context)
+            assertSame(widget.context, root.context)
+            assertEquals(manifest.id, widget.context.pluginId)
 
             val replies = mutableListOf<Event>()
             widget.emit = { replies += it }
