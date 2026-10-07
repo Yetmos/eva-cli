@@ -6,4 +6,5 @@ import com.eva_cli.core.widgets.provider.WidgetProvider
 /** 公开无参入口，由宿主按照 plugin.json 中的 entryClass 创建。 */
 class EchoPlugin : PluginEntry {
     override val providers: List<WidgetProvider> = listOf(EchoProvider())
+    override val dispatchers = listOf(RootDispatcher())
 }

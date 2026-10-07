@@ -11,8 +11,9 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/commonMain/kotlin/com/eva_cli/examples/echo/EchoPlugin.kt` | 实现 `PluginEntry`，公开无参构造器，持有一个 Provider 实例。 |
+| `src/commonMain/kotlin/com/eva_cli/examples/echo/EchoPlugin.kt` | 实现 `PluginEntry`，公开无参构造器，提供根 Dispatcher 和 Echo Provider。 |
 | `src/commonMain/kotlin/com/eva_cli/examples/echo/EchoProvider.kt` | 实现 `/Echo` topic 的文本回显及启停状态。 |
+| `src/commonMain/kotlin/com/eva_cli/examples/echo/RootDispatcher.kt` | 提供 `topic="/"` 的根 Dispatcher，由宿主 Booter 发现并启动。 |
 | `plugin.json` | 声明插件 ID、版本、JVM 入口类及 JAR 相对路径。 |
 | `src/jvmTest/kotlin/com/eva_cli/examples/echo/EchoPluginLoadingTest.kt` | 最小测试宿主：读清单、从实际 JAR 加载入口、绑定回调、收发事件并停止组件。 |
 | `src/jvmTest/kotlin/com/eva_cli/examples/echo/EvaPluginPackageTest.kt` | 检查发布内容包含独立工程和 API 源码，且未混入本机配置与构建缓存。 |
@@ -134,9 +135,9 @@ JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 `enable = false` 时忽略输入；二进制事件也会被忽略。输出异常和协程取消向上传递，
 并恢复处理状态；若输出回调停止了组件，则保留 `STOP` 状态。
 
-`PluginEntry` 仅提供组件，不负责启动它们。示例可由测试宿主直接驱动；接入正式
-Dispatcher 树使用宿主的 `scanProviders` / `scanDispatchers` 挂接已加载组件。
-本示例只有 `/Echo` Provider，接入完整调度树还需要相应的 `/Echo` Dispatcher 和事件路由。
+`PluginEntry` 仅提供组件，不负责启动它们。示例提供 `topic="/"` 的根 Dispatcher，
+宿主 `Booter` 会从已加载插件中发现并启动它；宿主不再内置 RootDispatcher。
+当前示例仍只有 `/Echo` Provider，完整事件路由和 `/Echo` Dispatcher 后续接入。
 
 ## 扩展示例
 

@@ -320,7 +320,7 @@ Android/iOS 当前的三个 API 均明确抛出 `UnsupportedOperationException`�
 该方法仅负责加载阶段的回滚；后续 `Booter.start()` 失败时的调度树清理仍由运行时负责。
 
 `Booter.start()` 将已加载插件中唯一 `topic == "/"` 的 `WidgetDispatcher` 作为
-RootDispatcher，直接启动该实例；不依赖组件名称或内置 `RootDispatcher` 类型。
+根调度器，直接启动该实例；宿主不内置 RootDispatcher，也不依赖组件名称或具体实现类型。
 根节点缺失或重复时，在启动任何组件前抛出 `IllegalStateException`。
 根调度器负责扫描子节点、绑定回调并启动整棵树，`Booter` 不参与事件调度。
 重复启动前须先停止；启动失败时保留根引用，调用方须执行 `Booter.stop()` 清理后再重试。
