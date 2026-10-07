@@ -302,6 +302,28 @@ val unloaded = PlugManager.unloadPlugin("com.example.echo")
 抛出 `IllegalStateException`。加载和释放包含同步磁盘访问，应在后台线程调用。
 Android/iOS 当前的三个 API 均明确抛出 `UnsupportedOperationException`。
 
+## 按 topic 查询组件
+
+```kotlin
+val providers = PlugManager.findProviders("/Chat")
+val children = PlugManager.findChildDispatchers("/Chat")
+val topLevel = PlugManager.findChildDispatchers("/")
+```
+
+`findProviders(topic)` 返回已加载插件中 topic 完全匹配的 `WidgetProvider` 列表。
+`findChildDispatchers(topic)` 返回直接子级的 `WidgetDispatcher` 列表：查询 `/Chat`
+可匹配 `/Chat/Search`，不会匹配 `/Chat`、`/Chat/Search/Web` 或 `/Chatty/Search`。
+查询根路径 `/` 可匹配 `/Chat`，根节点自身不属于子级。
+
+topic 区分大小写，必须是以 `/` 开头的规范路径；根路径允许为 `/`，其余路径不能以 `/` 结尾。
+路径段不允许为空、纯空白、带首尾空白、`.`、`..`，也不允许包含反斜杠或控制字符。
+非法查询参数抛出 `IllegalArgumentException`；声明了非法 topic 的组件不会被这些查询匹配。
+
+查询直接使用 `loadedList` 中的组件快照，结果按插件 ID、插件内声明顺序排列，
+包含未启用的组件，返回原组件实例，不执行注册、回调绑定或生命周期方法。
+仅安装而未加载的插件不会被查询到；释放后下一次查询不再包含该插件，旧结果列表保持不变。
+无匹配时返回空列表。Android/iOS 当前随 `loadedList` 抛出 `UnsupportedOperationException`。
+
 ## 卸载已安装插件
 
 JVM 宿主通过插件 ID 和版本卸载指定安装：

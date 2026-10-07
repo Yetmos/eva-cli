@@ -12,6 +12,7 @@ import com.eva_cli.testplugins.LoadingProvider
 import com.eva_cli.testplugins.NotAnEntry
 import com.eva_cli.testplugins.PrivateConstructorEntry
 import com.eva_cli.testplugins.ProvidersFailureEntry
+import com.eva_cli.testplugins.QueryEntry
 import com.eva_cli.testplugins.RequiredArgumentEntry
 import com.eva_cli.testplugins.dependencies.PrivateDependency
 import java.net.JarURLConnection
@@ -48,6 +49,116 @@ object LoadingFixtureHooks {
 }
 
 class PlugManagerLoadingJvmTest {
+    @Test
+    fun topicQueriesDiscoverOnlyLoadedPluginsAndUpdateAfterUnload() = withRuntimeRoot { root ->
+        assertTrue(PlugManager.findProviders("/Loading").isEmpty())
+        assertTrue(PlugManager.findChildDispatchers("/").isEmpty())
+        assertFalse(Files.exists(root.resolve("Plugins")))
+        writePlugin(root)
+        assertTrue(PlugManager.findProviders("/Loading").isEmpty())
+        assertTrue(PlugManager.findChildDispatchers("/").isEmpty())
+
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+        assertSame(loaded.providers.single(), PlugManager.findProviders("/Loading").single())
+        assertSame(loaded.dispatchers.single(), PlugManager.findChildDispatchers("/").single())
+
+        PlugManager.unloadPlugin(ID)
+        assertTrue(PlugManager.findProviders("/Loading").isEmpty())
+        assertTrue(PlugManager.findChildDispatchers("/").isEmpty())
+    }
+
+    @Test
+    fun providerQueriesMatchOnlyExactCaseSensitiveTopics() = withRuntimeRoot { root ->
+        writePlugin(root, entry = QueryEntry::class.java)
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+
+        assertEquals(listOf(loaded.providers[0], loaded.providers[4]), PlugManager.findProviders("/Room"))
+        assertSame(loaded.providers[1], PlugManager.findProviders("/Room/Child").single())
+        assertSame(loaded.providers[2], PlugManager.findProviders("/Roommate").single())
+        assertSame(loaded.providers[3], PlugManager.findProviders("/room").single())
+        assertSame(loaded.providers[5], PlugManager.findProviders("/").single())
+        assertSame(loaded.providers[6], PlugManager.findProviders("/Room with space").single())
+        assertTrue(PlugManager.findProviders("/Roo").isEmpty())
+        assertTrue(PlugManager.findProviders("/ROOM").isEmpty())
+    }
+
+    @Test
+    fun dispatcherQueriesReturnOnlyValidDirectChildrenInDeclarationOrder() = withRuntimeRoot { root ->
+        writePlugin(root, entry = QueryEntry::class.java)
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+
+        assertEquals(listOf(loaded.dispatchers[0], loaded.dispatchers[2]), PlugManager.findChildDispatchers("/"))
+        assertEquals(
+            listOf(loaded.dispatchers[3], loaded.dispatchers[4], loaded.dispatchers[8]),
+            PlugManager.findChildDispatchers("/Room"),
+        )
+        assertSame(loaded.dispatchers[5], PlugManager.findChildDispatchers("/Room/First").single())
+        assertSame(loaded.dispatchers[6], PlugManager.findChildDispatchers("/Roommate").single())
+        assertSame(loaded.dispatchers[7], PlugManager.findChildDispatchers("/room").single())
+        assertTrue(PlugManager.findChildDispatchers("/Roo").isEmpty())
+        assertTrue(PlugManager.findChildDispatchers("/Room/Second").isEmpty())
+        assertTrue(PlugManager.findChildDispatchers("/ROOM").isEmpty())
+    }
+
+    @Test
+    fun queriesPreservePluginOrderComponentIdentityAndDisabledComponents() = withRuntimeRoot { root ->
+        writePlugin(root, id = "com.example.z", entry = QueryEntry::class.java)
+        writePlugin(root, id = "com.example.a", entry = QueryEntry::class.java)
+        val z = PlugManager.loadPlugin("com.example.z", VERSION)
+        val a = PlugManager.loadPlugin("com.example.a", VERSION)
+        a.providers[0].enable = false
+        z.dispatchers[3].enable = false
+
+        val providers = PlugManager.findProviders("/Room")
+        val dispatchers = PlugManager.findChildDispatchers("/Room")
+
+        val expectedProviders = listOf(a.providers[0], a.providers[4], z.providers[0], z.providers[4])
+        val expectedDispatchers = listOf(
+            a.dispatchers[3], a.dispatchers[4], a.dispatchers[8],
+            z.dispatchers[3], z.dispatchers[4], z.dispatchers[8],
+        )
+        assertEquals(expectedProviders.size, providers.size)
+        assertEquals(expectedDispatchers.size, dispatchers.size)
+        expectedProviders.zip(providers).forEach { (expected, actual) -> assertSame(expected, actual) }
+        expectedDispatchers.zip(dispatchers).forEach { (expected, actual) -> assertSame(expected, actual) }
+        assertFalse(providers.first().enable)
+        assertFalse(dispatchers[3].enable)
+        assertTrue(providers.all { it.status == Provider.Status.STOP && it.emit == null })
+        assertTrue(dispatchers.all { it.feedUp == null })
+    }
+
+    @Test
+    fun queriesUseLoadedComponentSnapshotsAndReturnDetachedResults() = withRuntimeRoot { root ->
+        writePlugin(root, entry = QueryEntry::class.java)
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+        val providers = PlugManager.findProviders("/Room")
+        val dispatchers = PlugManager.findChildDispatchers("/Room")
+        (loaded.entry.providers as MutableList<*>).clear()
+        (loaded.entry.dispatchers as MutableList<*>).clear()
+
+        assertEquals(providers, PlugManager.findProviders("/Room"))
+        assertEquals(dispatchers, PlugManager.findChildDispatchers("/Room"))
+
+        PlugManager.unloadPlugin(ID)
+        assertTrue(PlugManager.findProviders("/Room").isEmpty())
+        assertTrue(PlugManager.findChildDispatchers("/Room").isEmpty())
+        assertEquals(2, providers.size)
+        assertEquals(3, dispatchers.size)
+    }
+
+    @Test
+    fun rejectsMalformedTopicQueriesEvenWhenNothingIsLoaded() = withRuntimeRoot { root ->
+        for (topic in listOf(
+            "", " ", "Room", " Room", "//", "/Room/", "/Room//Child", "/.", "/..", "/Room/.", "/Room/..",
+            "/ ", "/ leading", "/trailing ", "/Room/ leading", "/Room/trailing ",
+            "\\Room", "/Room\\Child", "/Room/\nChild", "/Room/\u0000Child", "/Room/\u007fChild",
+        )) {
+            assertFailsWith<IllegalArgumentException>(topic) { PlugManager.findProviders(topic) }
+            assertFailsWith<IllegalArgumentException>(topic) { PlugManager.findChildDispatchers(topic) }
+        }
+        assertFalse(Files.exists(root.resolve("Plugins")))
+    }
+
     @Test
     fun readingAnEmptyRegistryAndUnloadingMissingPluginsDoesNotCreateDirectories() = withRuntimeRoot { root ->
         assertTrue(PlugManager.loadedList.isEmpty())

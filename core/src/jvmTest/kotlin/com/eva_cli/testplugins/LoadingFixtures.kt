@@ -16,11 +16,10 @@ class LoadingEntry : PluginEntry {
     override val dispatchers = mutableListOf<WidgetDispatcher>(LoadingDispatcher())
 }
 
-class LoadingProvider : WidgetProvider() {
+class LoadingProvider(override val topic: String = "/Loading") : WidgetProvider() {
     override val id = Uuid.random()
     override val name = PrivateDependency().description
     override val desc = "Loading fixture"
-    override val topic = "/Loading"
     override var enable = true
     override var status = Provider.Status.STOP
     override var records: List<EventRecord> = emptyList()
@@ -34,10 +33,9 @@ class LoadingProvider : WidgetProvider() {
     override fun stop(): Unit = error("Unloading must not stop providers")
 }
 
-class LoadingDispatcher : WidgetDispatcher() {
+class LoadingDispatcher(override val topic: String = "/Loading") : WidgetDispatcher() {
     override val name = "Loading dispatcher"
     override val desc = "Loading fixture"
-    override val topic = "/Loading"
 
     override suspend fun receive(event: Event) {
         feedUp?.invoke(event)
@@ -49,6 +47,21 @@ class LoadingDispatcher : WidgetDispatcher() {
 
     override suspend fun start(): Unit = error("Loading must not start dispatchers")
     override suspend fun stop(): Unit = error("Unloading must not stop dispatchers")
+}
+
+class QueryEntry : PluginEntry {
+    override val providers = listOf(
+        "/Room", "/Room/Child", "/Roommate", "/room", "/Room", "/", "/Room with space",
+    ).mapTo(mutableListOf<WidgetProvider>()) { LoadingProvider(it) }
+
+    override val dispatchers = listOf(
+        "/Zoo", "/", "/Room", "/Room/Second", "/Room/First", "/Room/First/Grandchild",
+        "/Roommate/Other", "/room/Child", "/Room/Second",
+        // Malformed candidates must never become root or nested children.
+        "", "relative", "//Room", "/Room/", "/Room//Child", "/Room/.", "/Room/..",
+        "/Room/ padded", "/Room/trailing ", "/Room/\tcontrol", "/Room/back\\slash",
+        "/.", "/..", "/ leading", "/trailing ", "/back\\slash",
+    ).mapTo(mutableListOf<WidgetDispatcher>()) { LoadingDispatcher(it) }
 }
 
 class ConstructorFailureEntry : PluginEntry {

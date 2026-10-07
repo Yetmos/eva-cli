@@ -46,6 +46,41 @@ object PlugManager {
         get() = listLoadedPlugins()
 
     /**
+     * 查询已加载插件中 topic 完全匹配的 Provider，区分大小写，包含未启用的组件。
+     * 返回原组件实例的列表快照，顺序为插件 ID、插件内声明顺序；不注册或启动组件。
+     * topic 须为规范绝对路径（如 /、/Chat、/Chat/Search），不接受空路径段、
+     * 首尾空白路径段、.、..、反斜杠或控制字符，否则抛出 [IllegalArgumentException]。
+     * Android/iOS 当前与 [loadedList] 一样不支持查询。
+     */
+    fun findProviders(topic: String): List<WidgetProvider> {
+        require(isValidTopic(topic)) { "topic 不是规范的绝对路径：$topic" }
+        return loadedList.flatMap { plugin -> plugin.providers.filter { it.topic == topic } }
+    }
+
+    /**
+     * 查询 topic 的直接子级 Dispatcher；/ 表示查询根路径，不返回自身或更深层后代。
+     * 路径规则与 [findProviders] 相同；忽略 topic 不规范的 Dispatcher。
+     * 返回原组件实例的列表快照，顺序为插件 ID、插件内声明顺序，包含未启用的组件。
+     * 不注册或启动组件；Android/iOS 当前与 [loadedList] 一样不支持查询。
+     */
+    fun findChildDispatchers(topic: String): List<WidgetDispatcher> {
+        require(isValidTopic(topic)) { "topic 不是规范的绝对路径：$topic" }
+        return loadedList.flatMap { plugin ->
+            plugin.dispatchers.filter { dispatcher ->
+                val childTopic = dispatcher.topic
+                childTopic != "/" && isValidTopic(childTopic) &&
+                    childTopic.substringBeforeLast('/').ifEmpty { "/" } == topic
+            }
+        }
+    }
+
+    private fun isValidTopic(topic: String): Boolean = topic == "/" ||
+        topic.startsWith('/') && topic.substring(1).split('/').all { segment ->
+            segment.isNotBlank() && segment == segment.trim() && segment != "." && segment != ".." &&
+                segment.none { it == '\\' || it.isISOControl() }
+        }
+
+    /**
      * 已安装插件的只读快照，每次读取均扫描磁盘，按 ID、版本字符串排序。
      * JVM 跳过临时目录、无效或不兼容的安装项；Android/iOS 当前不支持查询。
      * 此操作同步读取文件，应在后台线程调用。
