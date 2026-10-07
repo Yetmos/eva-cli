@@ -23,7 +23,7 @@ data class InstalledPlugin(
 /** 从安装目录读取的插件信息；每个已安装版本对应一项。 */
 data class InstalledPluginInfo(
     val manifest: PluginManifest,
-    /** 插件安装目录的绝对路径。 */
+    // 插件安装目录的绝对路径。
     val directory: String,
 )
 
@@ -49,9 +49,14 @@ object PlugManager {
         is PluginSource.Git -> throw UnsupportedOperationException("Git 插件来源尚未实现：${plugin.repository}")
     }
 
-    fun uninstallPlugin() {
-
-    }
+    /**
+     * 删除指定插件版本的安装目录；删除成功返回 true，未安装返回 false。
+     * 无需清单有效，保留其他版本及空的插件 ID 目录；不处理已加载的插件实例。
+     * id/version 必须是安全的单个目录名，否则抛出 [IllegalArgumentException]。
+     * 安装路径不是普通目录或删除失败时抛出 [IllegalStateException]。
+     * 此操作同步访问文件，应在后台线程调用；Android/iOS 当前不支持卸载。
+     */
+    fun uninstallPlugin(id: String, version: String): Boolean = uninstallLocalPlugin(id, version)
 
     // TODO: 备份所有的插件
     fun backup() {
@@ -67,3 +72,5 @@ object PlugManager {
 internal expect fun installLocalPlugin(source: PluginSource.File): InstalledPlugin
 
 internal expect fun listInstalledPlugins(): List<InstalledPluginInfo>
+
+internal expect fun uninstallLocalPlugin(id: String, version: String): Boolean

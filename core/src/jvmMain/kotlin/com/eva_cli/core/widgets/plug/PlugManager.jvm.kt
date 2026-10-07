@@ -17,6 +17,33 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 
+/** 仅删除指定版本，不依赖安装清单，也不跟随安装目录或其内容中的符号链接。 */
+internal actual fun uninstallLocalPlugin(id: String, version: String): Boolean {
+    require(isSafeInstallSegment(id)) { "插件 id 不是安全的目录名：$id" }
+    require(isSafeInstallSegment(version)) { "插件 version 不是安全的目录名：$version" }
+
+    try {
+        val pluginsDirectory = Path.of(FileUtils.rootPath())
+            .resolve(Configure.PLUGINS_DIR)
+            .toAbsolutePath()
+            .normalize()
+        val pluginDirectory = pluginsDirectory.resolve(id)
+        val versionDirectory = pluginDirectory.resolve(version)
+        for (directory in listOf(pluginsDirectory, pluginDirectory, versionDirectory)) {
+            if (Files.notExists(directory, NOFOLLOW_LINKS)) return false
+            check(Files.isDirectory(directory, NOFOLLOW_LINKS)) {
+                "插件安装路径不是普通目录：$directory"
+            }
+        }
+        deleteRecursively(versionDirectory)
+        return true
+    } catch (error: InvalidPathException) {
+        throw IllegalArgumentException("插件卸载路径无效：$id:$version", error)
+    } catch (error: Exception) {
+        throw IllegalStateException("卸载插件失败：$id:$version", error)
+    }
+}
+
 /** 从安装目录读取当前有效的 JVM 插件，不创建目录或修改安装记录。 */
 internal actual fun listInstalledPlugins(): List<InstalledPluginInfo> {
     val pluginsDirectory = Path.of(FileUtils.rootPath())
@@ -286,12 +313,14 @@ private fun validateManifest(manifest: PluginManifest, stagingDirectory: Path) {
 }
 
 private fun validateInstallSegment(value: String, label: String) {
-    if (value.isBlank() || value != value.trim() || value == "." || value == ".." ||
-        value.any { it == '/' || it == '\\' || it == ':' || it.code < 0x20 }
-    ) {
+    if (!isSafeInstallSegment(value)) {
         throw PluginInstallException("$label 不是安全的目录名：$value")
     }
 }
+
+private fun isSafeInstallSegment(value: String): Boolean =
+    value.isNotBlank() && value == value.trim() && value != "." && value != ".." &&
+        value.none { it == '/' || it == '\\' || it == ':' || it.isISOControl() }
 
 private fun validateEntryClass(value: String): String {
     val segments = value.split('.')

@@ -259,6 +259,24 @@ for (plugin in installed) {
 列表信息不包含安装调用的 `alreadyInstalled` 标志，也不推算原始发布包的 SHA-256；
 这些字段仍由 `installPlugin` 返回的 `InstalledPlugin` 提供。
 
+## 卸载已安装插件
+
+JVM 宿主通过插件 ID 和版本卸载指定安装：
+
+```kotlin
+val removed = PlugManager.uninstallPlugin("com.example.echo", "1.0.0")
+```
+
+删除 `Plugins/<id>/<version>` 及其内容后返回 `true`；目标不存在时返回 `false`，不创建目录。
+其他版本和插件保持不变，空的 ID 父目录和 `Plugins` 根目录保留。下一次读取 `installedList`
+会反映卸载结果。卸载不依赖清单或 JAR 校验，因此也可清理损坏、不完整或不兼容的安装。
+
+ID 和版本必须是安全的单个目录名，非法参数抛出 `IllegalArgumentException`。
+根目录、ID 目录或版本目录是符号链接或普通文件时拒绝卸载；目标目录内部的符号链接只删除
+链接本身。目录结构无效或文件删除失败时抛出 `IllegalStateException`；删除失败可能留下部分
+文件，可在解决文件占用或权限问题后重试。此操作同步访问磁盘，应在后台线程调用。
+Android/iOS 当前抛出 `UnsupportedOperationException`。
+
 ## 平台接入规则
 
 - PC：解压后使用 URLClassLoader 加载 `prebuilt/jvm/plugin.jar` 和 `prebuilt/jvm/lib/` 中的私有依赖，

@@ -2,6 +2,7 @@ package com.eva_cli.core.widgets.plug
 
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files
+import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
@@ -15,6 +16,151 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class PlugManagerJvmTest {
+    @Test
+    fun uninstallsOnlyTheRequestedVersionAndRefreshesTheInstalledList() = withRuntimeRoot { root ->
+        val first = writeInstalledFixture(root, "com.example.test")
+        val archive = createEva(root.resolve("second.eva"), version = "2.0.0")
+        val second = PlugManager.installPlugin(PluginSource.File(archive.toString()))
+        val other = writeInstalledFixture(root, "com.example.other")
+        val snapshot = PlugManager.installedList
+
+        assertTrue(PlugManager.uninstallPlugin("com.example.test", "1.0.0"))
+
+        assertFalse(Files.exists(first))
+        assertTrue(Files.isRegularFile(Path.of(second.directory).resolve("plugin.json")))
+        assertTrue(Files.isRegularFile(other.resolve("plugin.json")))
+        assertEquals(
+            listOf("com.example.other:1.0.0", "com.example.test:2.0.0"),
+            PlugManager.installedList.map { "${it.manifest.id}:${it.manifest.version}" },
+        )
+        assertEquals(3, snapshot.size)
+        assertFalse(PlugManager.uninstallPlugin("com.example.test", "1.0.0"))
+    }
+
+    @Test
+    fun uninstallingMissingPluginsDoesNotCreateDirectories() = withRuntimeRoot { root ->
+        val plugins = root.resolve("Plugins")
+        assertFalse(PlugManager.uninstallPlugin("com.example.missing", "1.0.0"))
+        assertFalse(Files.exists(plugins))
+
+        Files.createDirectory(plugins)
+        assertFalse(PlugManager.uninstallPlugin("com.example.missing", "1.0.0"))
+        assertFalse(Files.exists(plugins.resolve("com.example.missing")))
+
+        val parent = Files.createDirectory(plugins.resolve("com.example.missing"))
+        assertFalse(PlugManager.uninstallPlugin("com.example.missing", "1.0.0"))
+        assertTrue(Files.list(parent).use { it.findAny().isEmpty })
+    }
+
+    @Test
+    fun uninstallsBrokenIncompatibleAndIncompleteDirectoriesWithoutReadingTheirManifests() = withRuntimeRoot { root ->
+        val broken = writeInstalledFixture(root, "com.example.broken")
+        Files.writeString(broken.resolve("plugin.json"), "invalid json")
+        val incompatible = writeInstalledFixture(root, "com.example.incompatible")
+        Files.writeString(
+            incompatible.resolve("plugin.json"),
+            Files.readString(incompatible.resolve("plugin.json")).replace("\"apiVersion\": 1", "\"apiVersion\": 2"),
+        )
+        val incomplete = Files.createDirectories(root.resolve("Plugins/com.example.incomplete/1.0.0/nested"))
+        Files.writeString(incomplete.resolve("partial.txt"), "unfinished install")
+        assertTrue(PlugManager.installedList.isEmpty())
+
+        for (id in listOf("com.example.broken", "com.example.incompatible", "com.example.incomplete")) {
+            assertTrue(PlugManager.uninstallPlugin(id, "1.0.0"))
+            assertFalse(Files.exists(root.resolve("Plugins/$id/1.0.0")))
+            assertTrue(Files.isDirectory(root.resolve("Plugins/$id")), "保留空的插件 ID 目录")
+            assertFalse(PlugManager.uninstallPlugin(id, "1.0.0"))
+        }
+    }
+
+    @Test
+    fun rejectsUnsafeUninstallArgumentsWithoutDeletingFiles() = withRuntimeRoot { root ->
+        val installed = writeInstalledFixture(root, "com.example.test")
+        val sentinel = root.resolve("keep.txt")
+        Files.writeString(sentinel, "keep me")
+        val invalid = listOf(
+            "", " ", ".", "..", "../com.example.test", "/absolute", "a/b", "a\\b", "C:\\Plugins",
+            "C:relative", " leading", "trailing ", "line\nbreak", "nul\u0000byte", "del\u007f", "control\u0085",
+        )
+
+        for (value in invalid) {
+            val idError = assertFailsWith<IllegalArgumentException> {
+                PlugManager.uninstallPlugin(value, "1.0.0")
+            }
+            val versionError = assertFailsWith<IllegalArgumentException> {
+                PlugManager.uninstallPlugin("com.example.test", value)
+            }
+            assertFalse(idError is PluginInstallException)
+            assertFalse(versionError is PluginInstallException)
+            assertEquals("keep me", Files.readString(sentinel))
+            assertTrue(Files.isRegularFile(installed.resolve("plugin.json")))
+        }
+    }
+
+    @Test
+    fun refusesNonDirectoryUninstallPathsAtEveryInstallationLevel() {
+        for (relative in listOf("Plugins", "Plugins/com.example.test", "Plugins/com.example.test/1.0.0")) {
+            withRuntimeRoot { root ->
+                val path = root.resolve(relative)
+                Files.createDirectories(path.parent)
+                Files.writeString(path, "keep me")
+
+                assertFailsWith<IllegalStateException> {
+                    PlugManager.uninstallPlugin("com.example.test", "1.0.0")
+                }
+                assertEquals("keep me", Files.readString(path))
+            }
+        }
+    }
+
+    @Test
+    fun refusesLinkedAndDanglingUninstallPathsAtEveryInstallationLevel() {
+        if (System.getProperty("os.name").startsWith("Windows")) return
+        for (relative in listOf("Plugins", "Plugins/com.example.test", "Plugins/com.example.test/1.0.0")) {
+            for (dangling in listOf(false, true)) {
+                withRuntimeRoot { root ->
+                    val outside = root.resolve("outside")
+                    val sentinel = outside.resolve("keep.txt")
+                    if (!dangling) {
+                        Files.createDirectory(outside)
+                        Files.writeString(sentinel, "keep me")
+                    }
+                    val path = root.resolve(relative)
+                    Files.createDirectories(path.parent)
+                    Files.createSymbolicLink(path, outside)
+
+                    assertFailsWith<IllegalStateException> {
+                        PlugManager.uninstallPlugin("com.example.test", "1.0.0")
+                    }
+                    assertTrue(Files.isSymbolicLink(path))
+                    if (dangling) {
+                        assertFalse(Files.exists(outside, NOFOLLOW_LINKS))
+                    } else {
+                        assertEquals("keep me", Files.readString(sentinel))
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun deletesInternalLinksWithoutFollowingThemOrDeletingExternalContents() = withRuntimeRoot { root ->
+        if (System.getProperty("os.name").startsWith("Windows")) return@withRuntimeRoot
+        val installed = writeInstalledFixture(root, "com.example.test")
+        val outside = Files.createDirectory(root.resolve("outside"))
+        val sentinel = outside.resolve("keep.txt")
+        Files.writeString(sentinel, "keep me")
+        Files.createSymbolicLink(installed.resolve("linked-directory"), outside)
+        Files.createSymbolicLink(installed.resolve("linked-file"), sentinel)
+        Files.createSymbolicLink(installed.resolve("dangling-link"), outside.resolve("missing"))
+
+        assertTrue(PlugManager.uninstallPlugin("com.example.test", "1.0.0"))
+
+        assertFalse(Files.exists(installed, NOFOLLOW_LINKS))
+        assertEquals("keep me", Files.readString(sentinel))
+        assertEquals(listOf("keep.txt"), Files.list(outside).use { it.map { path -> path.fileName.toString() }.toList() })
+    }
+
     @Test
     fun listingAnEmptyRuntimeDoesNotCreateDirectories() = withRuntimeRoot { root ->
         assertTrue(PlugManager.installedList.isEmpty())
