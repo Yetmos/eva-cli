@@ -12,7 +12,9 @@ const val CURRENT_PLUGIN_API_VERSION: Int = 1
 // 安装插件时发现包内容不满足发布规范。
 class PluginInstallException(message: String, cause: Throwable? = null) : IllegalArgumentException(message, cause)
 
-// 已完成校验并安装（或发现相同版本已经安装）的插件。
+/**
+ *  已完成校验并安装（或发现相同版本已经安装）的插件。
+ *  */
 data class InstalledPlugin(
     val manifest: PluginManifest,
     // 以宿主运行目录为基准的已安装目录绝对路径。
