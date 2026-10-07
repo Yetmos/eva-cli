@@ -7,7 +7,7 @@ class RootDispatcher: BaseDispatcher() {
 
     override val name: String = "RootDispatcher"
     override val desc: String = "RootDispatcher"
-    override val topic: String = "/Root"
+    override val topic: String = "/"
 
     // INFO: 把消息分发给下级Dispatcher或者交给Provider处理
     override suspend fun dispatch(event: Event) {
