@@ -26,6 +26,9 @@
 ./gradlew :examples:echo-plugin:assembleEvaPlugin
 ```
 
+如果当前位于 EvaLauncher 仓库根目录，先执行 `cd eva-cli`。
+Windows PowerShell 使用 `.\gradlew.bat :examples:echo-plugin:assembleEvaPlugin`。
+
 该任务编译插件、组装独立工程、运行 Provider 行为和实际 JAR 加载测试，再生成：
 
 ```text
@@ -60,10 +63,11 @@ prebuilt/jvm/plugin.jar # 本次构建生成的插件代码
 也可以在解压目录执行：
 
 ```sh
-./gradlew check assembleEvaPlugin
+./gradlew assembleEvaPlugin
 ```
 
-Windows PowerShell 使用 `.\gradlew.bat check assembleEvaPlugin`。
+`assembleEvaPlugin` 已依赖 `check`，会先运行测试再生成发布包。
+Windows PowerShell 使用 `.\gradlew.bat assembleEvaPlugin`。
 若解压工具未保留脚本执行权限，先执行 `chmod +x gradlew`。
 产物位于 `build/distributions/`。修改源码后重新执行该命令即可得到新的 `.eva`。
 源码构建不读取包内 `prebuilt/`，删除该目录后仍能编译、测试并重新打包。
@@ -137,7 +141,15 @@ Dispatcher 树还需要宿主实现组件注册和 `scanProviders` / `scanDispat
 Provider 的 `receive` 实现。新增 Dispatcher 时继承 `WidgetDispatcher`，并通过
 入口的 `dispatchers` 属性提供实例；宿主仍负责回调绑定和生命周期。
 
-当前示例版本与 `eva-cli` 工程版本一致；发布新版本时同步更新构建版本、`plugin.json`
-中的 `version` 和 `source.coordinate`。独立工程的构建版本位于根目录 `build.gradle.kts`，
-打包时会自动写入下一份发布工程。使用不同 Kotlin
-工具链时同步更新 `builtWith.kotlin` 和版本目录；测试会检查清单与实际构建的一致性。
+## 发布新版本
+
+发布新版本前同步以下配置，再运行 `assembleEvaPlugin`：
+
+1. 构建版本：仓库内修改 `eva-cli/build.gradle.kts` 的 `allprojects.version`；
+   解压后的独立工程修改根目录 `build.gradle.kts` 中的版本。
+2. 插件清单：修改 `plugin.json` 的 `version`，并同步 `source.coordinate` 中的版本部分。
+   例如发布 `0.1.1-alpha` 时，坐标应为 `com.eva_cli:echo-plugin:0.1.1-alpha`。
+3. 如果更换 Kotlin 工具链，同步版本目录 `gradle/libs.versions.toml` 和清单的 `builtWith.kotlin`。
+
+测试会检查清单与实际构建的一致性。新包文件名包含构建版本，例如
+`echo-plugin-0.1.1-alpha.eva`。
