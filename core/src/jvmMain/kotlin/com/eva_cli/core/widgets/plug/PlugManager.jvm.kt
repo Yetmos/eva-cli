@@ -332,7 +332,7 @@ private fun validateEntryClass(value: String): String {
     return value
 }
 
-private fun resolveManifestPath(root: Path, value: String, label: String): Path {
+internal fun resolveManifestPath(root: Path, value: String, label: String): Path {
     val relative = try {
         safeArchivePath(value)
     } catch (error: PluginInstallException) {

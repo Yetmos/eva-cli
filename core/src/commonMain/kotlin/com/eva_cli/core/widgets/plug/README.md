@@ -3,8 +3,8 @@
 `.eva` 使用 ZIP 格式，解压后直接成为一个可用 Android Studio 或 IntelliJ IDEA 打开的标准 KMP 工程。
 源码、构建配置、插件清单和公共资源位于工程根目录，预编译产物统一放在 `prebuilt/`。
 PC 加载 JVM JAR，Android 加载 DEX，iOS 在构建时选择 KLIB 或源码集成。
-以下内容是发布格式与接入流程的设计约定。JVM 宿主已支持本地 `.eva` 校验、解压和安装；
-Android 打包、iOS 构建接入以及运行时 JAR 加载仍需后续实现。发布包仅需包含所声明平台的产物。
+以下内容是发布格式与接入流程的设计约定。JVM 宿主已支持本地 `.eva` 校验、解压、安装及 JAR 加载；
+Android 打包、iOS 构建接入以及运行时调度树接入仍需后续实现。发布包仅需包含所声明平台的产物。
 
 ## 发布包结构
 
@@ -258,6 +258,49 @@ for (plugin in installed) {
 
 列表信息不包含安装调用的 `alreadyInstalled` 标志，也不推算原始发布包的 SHA-256；
 这些字段仍由 `installPlugin` 返回的 `InstalledPlugin` 提供。
+
+## 加载与释放插件实例
+
+JVM 宿主从已安装的指定版本创建插件入口，并获取该入口提供的组件：
+
+```kotlin
+val loaded = PlugManager.loadPlugin("com.example.echo", "0.1.0-alpha")
+val entry = loaded.entry
+val providers = loaded.providers
+val dispatchers = loaded.dispatchers
+val snapshot = PlugManager.loadedList
+
+// 使用组件的运行时完成停止、解绑及移除组件引用后，释放加载器。
+val unloaded = PlugManager.unloadPlugin("com.example.echo")
+```
+
+`loadPlugin(id, version)` 返回 `LoadedPlugin`，包含清单、安装目录绝对路径、`PluginEntry`
+实例及加载时读取的 Provider、Dispatcher 列表快照。每个插件 ID 在进程内只加载一个版本；
+同一版本和安装路径重复调用会返回同一个对象。切换版本或运行目录前，应先释放原实例。
+入口构造、组件读取或校验失败时不发布加载记录，并关闭此次创建的加载器。
+
+`loadedList` 返回按插件 ID 排序的已加载实例列表快照，不扫描磁盘，也不会自动加载插件。
+后续加载、释放不会修改旧列表；列表中的入口和组件仍是同一批运行时对象。
+`unloadPlugin(id)` 关闭加载器并移除记录，成功返回 `true`，未加载返回 `false`。
+释放后可以重新加载得到新的入口实例；安装文件保留，删除安装文件仍使用 `uninstallPlugin`。
+
+加载器读取主 JAR 和清单 `platforms.jvm.dependencies` 目录中的依赖 JAR，
+复用安装器的清单与兼容性检查，并检查入口是主 JAR 中提供公开无参构造器的 `PluginEntry`。
+插件类和资源优先从自身 JAR 和私有依赖加载；JDK、Kotlin、kotlinx 及宿主核心 API 优先使用宿主类型，
+宿主未提供的类再从插件 JAR 查找，从而允许插件组件直接接收宿主事件。
+依赖目录递归扫描，JAR 按路径排序；不跟随 JAR Manifest 的 `Class-Path` 或 `META-INF/INDEX.LIST`，
+含这些隐式类路径声明的 JAR 会被拒绝，依赖应放在明确声明的目录中。
+安装路径、清单、产物及依赖路径中的符号链接会被拒绝。
+
+这三个 API 管理加载记录和加载器资源。组件的 topic 注册、事件回调绑定、`start/stop`
+由宿主运行时负责；当前不会自动接入 `RootDispatcher`。调用方停止组件并移除引用后再释放，
+关闭 ClassLoader 不会强制终止插件线程，也不保证 JVM 立即回收已有类或外部仍持有的对象。
+关闭加载器报错时也会移除登记，避免继续返回已部分关闭的实例。
+删除已加载版本、恢复快照或改写其 JAR 前，应先释放相关插件；不要与这些磁盘操作并发调用加载 API。
+
+非法 ID/版本抛出 `IllegalArgumentException`；未安装、版本冲突、正在加载/释放或加载失败时
+抛出 `IllegalStateException`。加载和释放包含同步磁盘访问，应在后台线程调用。
+Android/iOS 当前的三个 API 均明确抛出 `UnsupportedOperationException`。
 
 ## 卸载已安装插件
 
