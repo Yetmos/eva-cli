@@ -1,5 +1,6 @@
 package com.eva_cli.core.widgets.plug
 
+import com.eva_cli.core.runtime.Plugin as RuntimePlugin
 import com.eva_cli.core.widgets.dispatcher.BaseDispatcher
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
@@ -54,6 +55,99 @@ object LoadingFixtureHooks {
 }
 
 class PlugManagerLoadingJvmTest {
+    @Test
+    fun runtimePluginStartWithNoInstallationsDoesNotCreatePluginDirectory() = withRuntimeRoot { root ->
+        RuntimePlugin.start()
+
+        assertTrue(PlugManager.loadedList.isEmpty())
+        assertFalse(Files.exists(root.resolve("Plugins")))
+    }
+
+    @Test
+    fun runtimePluginStartLoadsEverySingleVersionAndLeavesComponentsDetached() = withRuntimeRoot { root ->
+        writePlugin(root, id = "com.example.b", entry = LoadingEntry::class.java)
+        writePlugin(root, id = "com.example.a", entry = ScanEntry::class.java)
+
+        RuntimePlugin.start()
+
+        val loaded = PlugManager.loadedList
+        assertEquals(listOf("com.example.a", "com.example.b"), loaded.map { it.manifest.id })
+        assertEquals(listOf(loaded[0].providers[0], loaded[0].providers[4]), PlugManager.findProviders("/Room"))
+        assertEquals(listOf(loaded[1].providers.single()), PlugManager.findProviders("/Loading"))
+        assertEquals(
+            listOf(loaded[0].dispatchers[1], loaded[0].dispatchers[2]),
+            PlugManager.findChildDispatchers("/Room"),
+        )
+        loaded.flatMap { it.providers }.forEach {
+            assertEquals(Provider.Status.STOP, it.status)
+            assertNull(it.emit)
+        }
+        loaded.flatMap { it.dispatchers }.forEach { assertNull(it.feedUp) }
+    }
+
+    @Test
+    fun runtimePluginStartIsIdempotentAndLoadsInstallationsAddedLater() = withRuntimeRoot { root ->
+        writePlugin(root, id = "com.example.a")
+        RuntimePlugin.start()
+        val first = PlugManager.loadedList.single()
+
+        RuntimePlugin.start()
+        assertSame(first, PlugManager.loadedList.single())
+
+        writePlugin(root, id = "com.example.b")
+        RuntimePlugin.start()
+        assertEquals(listOf("com.example.a", "com.example.b"), PlugManager.loadedList.map { it.manifest.id })
+        assertSame(first, PlugManager.loadedList.first())
+    }
+
+    @Test
+    fun runtimePluginStartRejectsMultipleVersionsBeforeLoadingAndPreservesExistingEntries() = withRuntimeRoot { root ->
+        writePlugin(root, id = "com.example.loaded")
+        val existing = PlugManager.loadPlugin("com.example.loaded", VERSION)
+        writePlugin(root, id = "com.example.conflict", version = "1.0.0")
+        writePlugin(root, id = "com.example.conflict", version = "2.0.0")
+
+        val failure = assertFailsWith<IllegalStateException> { RuntimePlugin.start() }
+
+        assertTrue(failure.message.orEmpty().contains("com.example.conflict"))
+        assertTrue(failure.message.orEmpty().contains("1.0.0"))
+        assertTrue(failure.message.orEmpty().contains("2.0.0"))
+        assertEquals(listOf(existing), PlugManager.loadedList)
+        assertSame(existing, PlugManager.loadedList.single())
+    }
+
+    @Test
+    fun runtimePluginStartRollsBackOnlyNewEntriesWhenAPluginFailsAndCanRetryAfterRepair() = withRuntimeRoot { root ->
+        writePlugin(root, id = "com.example.a.preloaded")
+        val preloaded = PlugManager.loadPlugin("com.example.a.preloaded", VERSION)
+        writePlugin(root, id = "com.example.b.new")
+        writePlugin(root, id = "com.example.c.broken", entry = ConstructorFailureEntry::class.java)
+
+        assertFailsWith<IllegalStateException> { RuntimePlugin.start() }
+        assertEquals(listOf(preloaded), PlugManager.loadedList)
+        assertSame(preloaded, PlugManager.loadedList.single())
+
+        writePlugin(root, id = "com.example.c.broken", entry = LoadingEntry::class.java)
+        RuntimePlugin.start()
+
+        assertEquals(
+            listOf("com.example.a.preloaded", "com.example.b.new", "com.example.c.broken"),
+            PlugManager.loadedList.map { it.manifest.id },
+        )
+        assertSame(preloaded, PlugManager.loadedList.single { it.manifest.id == "com.example.a.preloaded" })
+    }
+
+    @Test
+    fun runtimePluginStartSkipsInvalidInstallationsReportedByInstalledList() = withRuntimeRoot { root ->
+        writePlugin(root, id = "com.example.valid")
+        val invalid = writePlugin(root, id = "com.example.invalid")
+        Files.delete(invalid.resolve("plugin.jar"))
+
+        RuntimePlugin.start()
+
+        assertEquals(listOf("com.example.valid"), PlugManager.loadedList.map { it.manifest.id })
+    }
+
     @Test
     fun scansExactProvidersAndDirectChildrenInPluginAndDeclarationOrder() = withRuntimeRoot { root ->
         writePlugin(root, id = "com.example.z", entry = ScanEntry::class.java)

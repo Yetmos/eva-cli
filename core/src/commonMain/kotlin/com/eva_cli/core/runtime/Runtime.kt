@@ -5,6 +5,7 @@ object Runtime {
 
     suspend fun start() {
         Configure.start()
+        Plugin.start()
         Booter.start()
     }
 

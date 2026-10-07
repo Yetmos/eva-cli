@@ -302,6 +302,23 @@ val unloaded = PlugManager.unloadPlugin("com.example.echo")
 抛出 `IllegalStateException`。加载和释放包含同步磁盘访问，应在后台线程调用。
 Android/iOS 当前的三个 API 均明确抛出 `UnsupportedOperationException`。
 
+## 运行时批量加载
+
+`com.eva_cli.core.runtime.Plugin.start()` 在 `Configure.start()` 之后、`Booter.start()`
+之前调用，读取 `PlugManager.installedList` 并加载所有有效的已安装插件，供 Dispatcher 扫描。
+空目录直接返回；无效安装沿用 `installedList` 的过滤规则。此阶段只加载入口与组件，
+组件扫描、回调绑定和启停仍由后续的调度树生命周期负责。
+
+同一 ID 存在多个有效安装版本时，在加载任何新插件前抛出 `IllegalStateException`，
+错误包含冲突 ID 和版本；调用前须为每个 ID 保留一个安装版本，不自动选择最新版本。
+重复调用复用同版本、同安装路径的已加载实例，也会发现之后新安装的插件。
+加载失败会逆序释放本次新增的实例，保留调用前的已加载实例及安装文件；
+清理失败会附加到原异常，不中断剩余实例的清理。
+
+此方法执行同步文件 I/O，应在后台线程、组件启动前调用，与安装、加载、释放及运行目录
+变更串行执行。Android/iOS 当前沿用 `PlugManager` 的未支持异常。
+该方法仅负责加载阶段的回滚；后续 `Booter.start()` 失败时的调度树清理仍由运行时负责。
+
 ## 按 topic 查询组件
 
 ```kotlin
