@@ -22,7 +22,7 @@ abstract class BaseDispatcher: Dispatcher{
             item.start()
         }
         for (item in dispatchers.values) {
-            item.feedUp = this::receive
+            item.emit = this::receive
             item.start()
         }
     }
@@ -37,7 +37,7 @@ abstract class BaseDispatcher: Dispatcher{
         }
     }
 
-    override var feedUp: (suspend (event: Event) -> Unit)? = null
+    override var emit: (suspend (event: Event) -> Unit)? = null
 
     // INFO: 决策树备份
     override suspend fun backupTree() {

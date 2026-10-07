@@ -18,6 +18,21 @@ import kotlin.test.assertTrue
 
 class PlugManagerJvmTest {
     @Test
+    fun rejectsUnsupportedPluginApiVersionsBeforeInstalling() = withRuntimeRoot { root ->
+        for (apiVersion in listOf(1, CURRENT_PLUGIN_API_VERSION + 1)) {
+            val archive = createEva(root.resolve("api-$apiVersion.eva"), apiVersion = apiVersion)
+
+            val failure = assertFailsWith<PluginInstallException> {
+                PlugManager.installPlugin(PluginSource.File(archive.toString()))
+            }
+
+            assertTrue(failure.message.orEmpty().contains("apiVersion=$apiVersion"))
+            assertFalse(Files.exists(root.resolve("Plugins/com.example.test/1.0.0")))
+            assertTrue(PlugManager.installedList.isEmpty())
+        }
+    }
+
+    @Test
     fun restoresAllPluginVersionsAndTheirContentsFromTheSnapshot() = withRuntimeRoot { root ->
         val first = writeInstalledFixture(root, "com.example.test")
         val secondArchive = createEva(root.resolve("second.eva"), version = "2.0.0")
@@ -270,7 +285,8 @@ class PlugManagerJvmTest {
         val incompatible = writeInstalledFixture(root, "com.example.incompatible")
         Files.writeString(
             incompatible.resolve("plugin.json"),
-            Files.readString(incompatible.resolve("plugin.json")).replace("\"apiVersion\": 1", "\"apiVersion\": 2"),
+            Files.readString(incompatible.resolve("plugin.json"))
+                .replace("\"apiVersion\": $CURRENT_PLUGIN_API_VERSION", "\"apiVersion\": 1"),
         )
         val incomplete = Files.createDirectories(root.resolve("Plugins/com.example.incomplete/1.0.0/nested"))
         Files.writeString(incomplete.resolve("partial.txt"), "unfinished install")
@@ -430,7 +446,8 @@ class PlugManagerJvmTest {
         val incompatible = writeInstalledFixture(root, "com.example.incompatible")
         Files.writeString(
             incompatible.resolve("plugin.json"),
-            Files.readString(incompatible.resolve("plugin.json")).replace("\"apiVersion\": 1", "\"apiVersion\": 2"),
+            Files.readString(incompatible.resolve("plugin.json"))
+                .replace("\"apiVersion\": $CURRENT_PLUGIN_API_VERSION", "\"apiVersion\": 1"),
         )
         Files.createDirectories(root.resolve("Plugins/com.example.incomplete/1.0.0"))
         Files.writeString(root.resolve("Plugins/notes.txt"), "not an installation")
@@ -586,6 +603,7 @@ class PlugManagerJvmTest {
     private fun createEva(
         path: Path,
         formatVersion: Int = 1,
+        apiVersion: Int = CURRENT_PLUGIN_API_VERSION,
         minJavaVersion: Int? = null,
         extraEntries: Map<String, ByteArray> = emptyMap(),
         id: String = "com.example.test",
@@ -599,7 +617,7 @@ class PlugManagerJvmTest {
               "id": "$id",
               "name": "Test Plugin",
               "version": "$version",
-              "apiVersion": 1,
+              "apiVersion": $apiVersion,
               "platforms": {
                 "jvm": {
                   "artifact": "prebuilt/jvm/plugin.jar",

@@ -59,6 +59,7 @@ val stageEvaPlugin = tasks.register<Sync>("stageEvaPlugin") {
     }
     // 共享接口只作为独立工程的编译输入；jvmJar 不将它们打进插件。
     from(apiSourceDirectory) {
+        include("com/eva_cli/core/widgets/Widget.kt")
         include("com/eva_cli/core/widgets/event/*.kt")
         include("com/eva_cli/core/widgets/provider/*.kt")
         include("com/eva_cli/core/widgets/dispatcher/*.kt")

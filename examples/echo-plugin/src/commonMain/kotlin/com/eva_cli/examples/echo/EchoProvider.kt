@@ -17,11 +17,11 @@ class EchoProvider : PluginProvider() {
     override var records: List<EventRecord> = emptyList()
     override var emit: (suspend (event: Event) -> Unit)? = null
 
-    override fun start() {
+    override suspend fun start() {
         status = Provider.Status.IDLE
     }
 
-    override fun stop() {
+    override suspend fun stop() {
         status = Provider.Status.STOP
     }
 

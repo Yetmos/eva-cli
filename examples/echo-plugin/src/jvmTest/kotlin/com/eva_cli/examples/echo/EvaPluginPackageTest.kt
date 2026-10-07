@@ -30,6 +30,7 @@ class EvaPluginPackageTest {
             "src/commonMain/kotlin/com/eva_cli/examples/echo/EchoProvider.kt",
             "src/commonMain/kotlin/com/eva_cli/examples/echo/RootDispatcher.kt",
             "src/jvmTest/kotlin/com/eva_cli/examples/echo/EchoPluginLoadingTest.kt",
+            "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/Widget.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/PluginEntry.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/PluginManifest.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/PlugManager.kt",

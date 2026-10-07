@@ -86,7 +86,7 @@ chat-plugin-1.0.0.eva
   "id": "com.example.chat",
   "name": "Chat Plugin",
   "version": "1.0.0",
-  "apiVersion": 1,
+  "apiVersion": 2,
   "resources": "resources",
   "platforms": {
     "jvm": {
@@ -119,6 +119,9 @@ chat-plugin-1.0.0.eva
 
 `formatVersion` 表示包格式版本，`apiVersion` 表示宿主插件接口版本，
 `version` 表示插件自身的发布版本。插件 ID 在升级时保持稳定。
+当前宿主 API 版本为 `2`，包格式版本仍为 `1`。API 2 将公共组件契约集中到 `Widget`，
+统一挂起的 `start/stop`，并将 Dispatcher 的 `feedUp` 回调更名为 `emit`。
+API 1 插件须迁移源码并使用新版 API 重新编译；宿主会拒绝安装或加载旧 API 插件。
 清单中的产物、依赖目录、仓库、源码和资源路径均相对于发布包根目录。
 `source.directory` 为 `.`，表示源码工程位于解压后的根目录；`gradleProject` 为 `:`，表示根项目。
 PC、Android 的 `entryClass` 用于反射实例化公开无参入口；

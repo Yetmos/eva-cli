@@ -1,5 +1,6 @@
 package com.eva_cli.examples.echo
 
+import com.eva_cli.core.widgets.Widget
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.plug.PluginEntry
 import com.eva_cli.core.widgets.plug.PluginManifest
@@ -29,7 +30,7 @@ class EchoPluginLoadingTest {
     private suspend fun assertPluginCanExchangeEvents(directory: File) {
         val manifest = Json.decodeFromString<PluginManifest>(directory.resolve("plugin.json").readText())
         assertEquals(1, manifest.formatVersion)
-        assertEquals(1, manifest.apiVersion)
+        assertEquals(2, manifest.apiVersion)
         assertEquals(System.getProperty("eva.echoPlugin.version"), manifest.version)
         val jvm = assertNotNull(manifest.platforms.jvm)
         assertTrue(Runtime.version().feature() >= assertNotNull(jvm.minJavaVersion))
@@ -61,17 +62,18 @@ class EchoPluginLoadingTest {
             val provider = entry.providers.single()
             assertSame(loader, provider.javaClass.classLoader)
             assertEquals("/Echo", provider.topic)
+            val widget: Widget = provider
 
             val replies = mutableListOf<Event>()
-            provider.emit = { replies += it }
-            provider.start()
+            widget.emit = { replies += it }
+            widget.start()
             try {
-                provider.receive(TestEvent(Event.Payload.Text("hello")))
+                widget.receive(TestEvent(Event.Payload.Text("hello")))
                 assertEquals(Event.Payload.Text("Echo: hello"), replies.single().payload)
-                assertEquals(provider.id, replies.single().metadata.providerId)
+                assertEquals(widget.id, replies.single().metadata.providerId)
             } finally {
-                provider.stop()
-                provider.emit = null
+                widget.stop()
+                widget.emit = null
             }
             assertEquals(Provider.Status.STOP, provider.status)
         }

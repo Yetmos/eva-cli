@@ -74,8 +74,8 @@ class PlugManagerLoadingJvmTest {
             Booter.start()
             assertEquals(listOf("/:restore", "/Child:restore", "/Child:start", "/:start"), events)
             assertSame(child, dispatcher.dispatchers.values.single())
-            assertNotNull(child.feedUp)
-            assertNull(dispatcher.feedUp)
+            assertNotNull(child.emit)
+            assertNull(dispatcher.emit)
             assertFailsWith<IllegalStateException> { Booter.start() }
             assertEquals(4, events.size)
 
@@ -188,7 +188,7 @@ class PlugManagerLoadingJvmTest {
             assertEquals(Provider.Status.STOP, it.status)
             assertNull(it.emit)
         }
-        loaded.flatMap { it.dispatchers }.forEach { assertNull(it.feedUp) }
+        loaded.flatMap { it.dispatchers }.forEach { assertNull(it.emit) }
     }
 
     @Test
@@ -331,7 +331,7 @@ class PlugManagerLoadingJvmTest {
         scanner.dispatchers[staleDispatcher.id] = staleDispatcher
         val onEvent: suspend (Event) -> Unit = { error("Scanning must not deliver events") }
         loaded.providers.forEach { it.emit = onEvent }
-        loaded.dispatchers.forEach { it.feedUp = onEvent }
+        loaded.dispatchers.forEach { it.emit = onEvent }
         val child = loaded.dispatchers[1]
         val childProvider = LoadingProvider("/Room/Zeta")
         val childDispatcher = ScanningDispatcher("/Room/Zeta/Stale")
@@ -350,7 +350,7 @@ class PlugManagerLoadingJvmTest {
             assertSame(onEvent, it.emit)
             assertEquals(Provider.Status.STOP, it.status)
         }
-        loaded.dispatchers.forEach { assertSame(onEvent, it.feedUp) }
+        loaded.dispatchers.forEach { assertSame(onEvent, it.emit) }
     }
 
     @Test
@@ -496,7 +496,7 @@ class PlugManagerLoadingJvmTest {
         assertFalse(providers.first().enable)
         assertFalse(dispatchers[3].enable)
         assertTrue(providers.all { it.status == Provider.Status.STOP && it.emit == null })
-        assertTrue(dispatchers.all { it.feedUp == null })
+        assertTrue(dispatchers.all { it.emit == null })
     }
 
     @Test
@@ -561,12 +561,12 @@ class PlugManagerLoadingJvmTest {
         val dispatcher = loaded.dispatchers.single()
         assertEquals(Provider.Status.STOP, provider.status)
         assertNull(provider.emit)
-        assertNull(dispatcher.feedUp)
+        assertNull(dispatcher.emit)
         val event = HostEvent()
         val received = mutableListOf<Event>()
         val onEvent: suspend (Event) -> Unit = { received += it }
         provider.emit = onEvent
-        dispatcher.feedUp = onEvent
+        dispatcher.emit = onEvent
         runBlocking {
             provider.receive(event)
             dispatcher.receive(event)
@@ -577,7 +577,7 @@ class PlugManagerLoadingJvmTest {
         assertTrue(PlugManager.unloadPlugin(ID))
         assertEquals(Provider.Status.STOP, provider.status)
         assertSame(onEvent, provider.emit)
-        assertSame(onEvent, dispatcher.feedUp)
+        assertSame(onEvent, dispatcher.emit)
     }
 
     @Test
@@ -698,7 +698,8 @@ class PlugManagerLoadingJvmTest {
     fun invalidManifestAndMissingOrCorruptArtifactsLeaveTheRegistryEmptyAndAllowRetry() {
         val mutations: List<(Path) -> Unit> = listOf(
             { Files.writeString(it.resolve("plugin.json"), "not json") },
-            { changeManifest(it) { manifest -> manifest.copy(apiVersion = 2) } },
+            { changeManifest(it) { manifest -> manifest.copy(apiVersion = 1) } },
+            { changeManifest(it) { manifest -> manifest.copy(apiVersion = CURRENT_PLUGIN_API_VERSION + 1) } },
             { changeManifest(it) { manifest -> manifest.copy(formatVersion = 2) } },
             { changeManifest(it) { manifest -> manifest.copy(id = "another.id") } },
             { changeManifest(it) { manifest -> manifest.copy(version = "2.0.0") } },
@@ -863,7 +864,7 @@ class PlugManagerLoadingJvmTest {
             id = id,
             name = "Loading fixture",
             version = version,
-            apiVersion = 1,
+            apiVersion = CURRENT_PLUGIN_API_VERSION,
             platforms = PluginManifest.Platforms(
                 jvm = PluginManifest.Jvm("plugin.jar", entry.name, dependencies = "dependencies"),
             ),

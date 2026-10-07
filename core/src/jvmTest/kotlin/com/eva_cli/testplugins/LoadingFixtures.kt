@@ -31,8 +31,8 @@ class LoadingProvider(
         emit?.invoke(event)
     }
 
-    override fun start(): Unit = error("Loading must not start providers")
-    override fun stop(): Unit = error("Unloading must not stop providers")
+    override suspend fun start(): Unit = error("Loading must not start providers")
+    override suspend fun stop(): Unit = error("Unloading must not stop providers")
 }
 
 class LoadingDispatcher(
@@ -43,7 +43,7 @@ class LoadingDispatcher(
     override val desc = "Loading fixture"
 
     override suspend fun receive(event: Event) {
-        feedUp?.invoke(event)
+        emit?.invoke(event)
     }
 
     override suspend fun dispatch(event: Event) {

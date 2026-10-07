@@ -74,7 +74,7 @@ Windows PowerShell 使用 `.\gradlew.bat assembleEvaPlugin`。
 源码构建不读取包内 `prebuilt/`，删除该目录后仍能编译、测试并重新打包。
 每次打包仅收集声明的源码和构建输入，JAR 来自当前构建，不复制旧预编译产物或缓存。
 
-独立工程使用 `sdk/plugin-api` 源码模块，内容从宿主现有的事件、Provider、Dispatcher
+独立工程使用 `sdk/plugin-api` 源码模块，内容从宿主现有的事件、Widget、Provider、Dispatcher
 和插件契约复制，不需要本地 Maven 仓库，也不要求 Android SDK。该快照保留宿主当前的
 基础实现和未完成能力，并为 Dispatcher 扫描提供仅用于编译的 `PlugManager` 查询入口；
 在独立 SDK 中调用该入口会抛出 `UnsupportedOperationException`。正式运行仍由宿主提供这些类，
@@ -131,13 +131,19 @@ JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 4. 将文本事件传给 `provider.receive(event)`，从回调取得回复。
 5. 结束时调用 `provider.stop()`，解除回调和组件引用，再关闭 ClassLoader。
 
-这个示例要求宿主串行调用生命周期方法和 `receive`。未启动、已停止或
+生命周期方法 `start()`、`stop()` 与 `receive()` 均为挂起函数；宿主须在协程中串行调用。
+未启动、已停止或
 `enable = false` 时忽略输入；二进制事件也会被忽略。输出异常和协程取消向上传递，
 并恢复处理状态；若输出回调停止了组件，则保留 `STOP` 状态。
 
 `PluginEntry` 仅提供组件，不负责启动它们。示例提供 `topic="/"` 的根 Dispatcher，
 宿主 `Booter` 会从已加载插件中发现并启动它；宿主不再内置 RootDispatcher。
 当前示例仍只有 `/Echo` Provider，完整事件路由和 `/Echo` Dispatcher 后续接入。
+
+当前插件接口为 `apiVersion: 2`：公共属性、生命周期、事件收发和单组件备份恢复由
+`Widget` 声明，Dispatcher 的输出回调由 `feedUp` 改为 `emit`。从 API 1 迁移时，
+将 Provider 的 `start/stop` 实现改为 `suspend`，更新 Dispatcher 回调名称，并使用新版
+API 重新编译、打包后将清单的 `apiVersion` 设为 `2`；仅修改清单无法兼容旧二进制。
 
 ## 扩展示例
 
