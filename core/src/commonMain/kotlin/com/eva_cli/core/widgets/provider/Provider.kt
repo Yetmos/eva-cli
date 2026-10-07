@@ -1,10 +1,11 @@
 package com.eva_cli.core.widgets.provider
 
+import com.eva_cli.core.widgets.Widget
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
 import kotlin.uuid.Uuid
 
-interface Provider {
+interface Provider : Widget {
     val id: Uuid
     val name: String
     val desc: String

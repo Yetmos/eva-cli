@@ -1,12 +1,13 @@
 package com.eva_cli.core.widgets.dispatcher
 
+import com.eva_cli.core.widgets.Widget
 import com.eva_cli.core.widgets.event.EventRecord
 import com.eva_cli.core.widgets.provider.Provider
 import com.eva_cli.core.widgets.event.Event
 import kotlin.uuid.Uuid
 
 // INFO: topic上事件的调度
-interface Dispatcher {
+interface Dispatcher : Widget{
 
     val id: Uuid
     val name: String
