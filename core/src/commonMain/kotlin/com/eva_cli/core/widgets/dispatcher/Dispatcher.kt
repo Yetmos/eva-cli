@@ -41,10 +41,10 @@ interface Dispatcher {
 
     suspend fun receive(event: Event)
 
-    // 扫描当前topic上的所有provider
+    /** 从已加载插件刷新当前 topic 的 Provider 映射，不负责组件启停或回调绑定。 */
     suspend fun scanProviders()
 
-    // 扫描所有的下级topic和对应的Dispatcher
+    /** 从已加载插件刷新直接子 topic 的 Dispatcher 映射，不递归扫描。 */
     suspend fun scanDispatchers()
 
 }

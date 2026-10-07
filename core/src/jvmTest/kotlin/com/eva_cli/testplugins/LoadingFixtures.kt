@@ -16,8 +16,10 @@ class LoadingEntry : PluginEntry {
     override val dispatchers = mutableListOf<WidgetDispatcher>(LoadingDispatcher())
 }
 
-class LoadingProvider(override val topic: String = "/Loading") : WidgetProvider() {
-    override val id = Uuid.random()
+class LoadingProvider(
+    override val topic: String = "/Loading",
+    override val id: Uuid = Uuid.random(),
+) : WidgetProvider() {
     override val name = PrivateDependency().description
     override val desc = "Loading fixture"
     override var enable = true
@@ -33,7 +35,10 @@ class LoadingProvider(override val topic: String = "/Loading") : WidgetProvider(
     override fun stop(): Unit = error("Unloading must not stop providers")
 }
 
-class LoadingDispatcher(override val topic: String = "/Loading") : WidgetDispatcher() {
+class LoadingDispatcher(
+    override val topic: String = "/Loading",
+    override val id: Uuid = Uuid.random(),
+) : WidgetDispatcher() {
     override val name = "Loading dispatcher"
     override val desc = "Loading fixture"
 
@@ -62,6 +67,34 @@ class QueryEntry : PluginEntry {
         "/Room/ padded", "/Room/trailing ", "/Room/\tcontrol", "/Room/back\\slash",
         "/.", "/..", "/ leading", "/trailing ", "/back\\slash",
     ).mapTo(mutableListOf<WidgetDispatcher>()) { LoadingDispatcher(it) }
+}
+
+class ScanEntry : PluginEntry {
+    override val providers = listOf("/Room", "/Room/Child", "/Roommate", "/room", "/Room")
+        .map { LoadingProvider(it) }
+    override val dispatchers = listOf(
+        "/Room", "/Room/Zeta", "/Room/Alpha", "/Room/Zeta/Grandchild", "/Roommate/Child", "/room/Child",
+    ).map { LoadingDispatcher(it) }
+}
+
+class OtherScanEntry : PluginEntry {
+    override val providers = listOf(LoadingProvider("/Room"))
+    override val dispatchers = listOf(LoadingDispatcher("/Room/Beta"))
+}
+
+class DuplicateIdsEntry : PluginEntry {
+    private val duplicateId = Uuid.random()
+    override val providers = listOf(LoadingProvider("/Room", duplicateId), LoadingProvider("/Room", duplicateId))
+    override val dispatchers = listOf(
+        LoadingDispatcher("/Room/First", duplicateId), LoadingDispatcher("/Room/Second", duplicateId),
+    )
+}
+
+class RepeatedComponentsEntry : PluginEntry {
+    private val provider = LoadingProvider("/Room")
+    private val dispatcher = LoadingDispatcher("/Room/Child")
+    override val providers = listOf(provider, provider)
+    override val dispatchers = listOf(dispatcher, dispatcher)
 }
 
 class ConstructorFailureEntry : PluginEntry {

@@ -220,8 +220,8 @@ class ChatProvider : WidgetProvider() {
 仓库内的 `eva-cli/examples/echo-plugin` 提供最小入口、文本回显 Provider 和 JVM 加载测试。
 在 `eva-cli` 目录执行 `./gradlew :examples:echo-plugin:check` 可构建并验证该示例。
 
-当前仓库中的组件扫描和 records 备份恢复流程仍在实现中；上述继承约定定义的是插件 API 边界，不能替代
-宿主的组件注册和运行时调度实现。
+组件扫描已接入已加载插件查询；records 备份恢复和根节点消息路由仍在实现中。
+上述继承约定定义的是插件 API 边界，不能替代宿主的完整运行时调度实现。
 
 ## JVM 本地安装
 
@@ -323,6 +323,22 @@ topic 区分大小写，必须是以 `/` 开头的规范路径；根路径允许
 包含未启用的组件，返回原组件实例，不执行注册、回调绑定或生命周期方法。
 仅安装而未加载的插件不会被查询到；释放后下一次查询不再包含该插件，旧结果列表保持不变。
 无匹配时返回空列表。Android/iOS 当前随 `loadedList` 抛出 `UnsupportedOperationException`。
+
+## Dispatcher 扫描组件
+
+`BaseDispatcher.scanProviders()` 通过 `findProviders(topic)` 刷新当前节点的 `providers`；
+`scanDispatchers()` 通过 `findChildDispatchers(topic)` 刷新 `dispatchers`，只处理直接子级。
+两者按组件 ID 建立映射，保留原组件实例、查询顺序及未启用组件，不递归扫描或绑定回调。
+
+每次扫描先构建并校验候选映射，再替换原映射内容；映射对象保持不变。
+重复扫描不累积组件，不再出现在查询结果中的旧组件会被移除；空结果清空对应映射。
+同一次扫描内的重复组件 ID、子 Dispatcher 与当前节点 ID 相同，或多个子 Dispatcher
+占用同一 topic 时抛出 `IllegalStateException`；查询或校验失败保留该方法对应的原映射。
+同一 topic 可以有多个不同 ID 的 Provider。两个扫描方法分别更新各自映射，不构成整棵树的事务。
+
+扫描应在启动前或停止后串行调用。组件的 `start/stop` 和回调绑定由生命周期流程处理，
+运行中的组件移除、热更新和全树冲突检查尚未接入。当前 `RootDispatcher.topic` 仍为 `/Root`，
+扫描不会自动修改根路径或为只有 Provider 的 topic 创建 Dispatcher。
 
 ## 卸载已安装插件
 

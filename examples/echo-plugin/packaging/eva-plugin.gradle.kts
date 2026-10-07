@@ -65,6 +65,10 @@ val stageEvaPlugin = tasks.register<Sync>("stageEvaPlugin") {
         include("com/eva_cli/core/widgets/plug/Plugin.kt")
         include("com/eva_cli/core/widgets/plug/PluginEntry.kt")
         include("com/eva_cli/core/widgets/plug/PluginManifest.kt")
+        if (coreProject == null) {
+            // 独立工程保留随包提供的查询编译入口，不复制宿主安装器和加载器。
+            include("com/eva_cli/core/widgets/plug/PlugManager.kt")
+        }
         into("sdk/plugin-api/src/commonMain/kotlin")
     }
 }

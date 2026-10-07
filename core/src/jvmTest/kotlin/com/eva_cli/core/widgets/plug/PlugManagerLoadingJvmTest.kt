@@ -1,19 +1,24 @@
 package com.eva_cli.core.widgets.plug
 
+import com.eva_cli.core.widgets.dispatcher.BaseDispatcher
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
 import com.eva_cli.core.widgets.provider.Provider
 import com.eva_cli.testplugins.ConstructorFailureEntry
 import com.eva_cli.testplugins.DispatchersFailureEntry
+import com.eva_cli.testplugins.DuplicateIdsEntry
 import com.eva_cli.testplugins.HookEntry
 import com.eva_cli.testplugins.LoadingDispatcher
 import com.eva_cli.testplugins.LoadingEntry
 import com.eva_cli.testplugins.LoadingProvider
 import com.eva_cli.testplugins.NotAnEntry
+import com.eva_cli.testplugins.OtherScanEntry
 import com.eva_cli.testplugins.PrivateConstructorEntry
 import com.eva_cli.testplugins.ProvidersFailureEntry
 import com.eva_cli.testplugins.QueryEntry
+import com.eva_cli.testplugins.RepeatedComponentsEntry
 import com.eva_cli.testplugins.RequiredArgumentEntry
+import com.eva_cli.testplugins.ScanEntry
 import com.eva_cli.testplugins.dependencies.PrivateDependency
 import java.net.JarURLConnection
 import java.net.URLClassLoader
@@ -49,6 +54,173 @@ object LoadingFixtureHooks {
 }
 
 class PlugManagerLoadingJvmTest {
+    @Test
+    fun scansExactProvidersAndDirectChildrenInPluginAndDeclarationOrder() = withRuntimeRoot { root ->
+        writePlugin(root, id = "com.example.z", entry = ScanEntry::class.java)
+        writePlugin(root, id = "com.example.a", entry = OtherScanEntry::class.java)
+        val z = PlugManager.loadPlugin("com.example.z", VERSION)
+        val a = PlugManager.loadPlugin("com.example.a", VERSION)
+        a.providers[0].enable = false
+        z.dispatchers[1].enable = false
+        val scanner = ScanningDispatcher("/Room")
+
+        runBlocking {
+            scanner.scanProviders()
+            scanner.scanDispatchers()
+        }
+
+        val providers = scanner.providers.values.toList()
+        val dispatchers = scanner.dispatchers.values.toList()
+        assertEquals(listOf(a.providers[0], z.providers[0], z.providers[4]), providers)
+        assertEquals(listOf(a.dispatchers[0], z.dispatchers[1], z.dispatchers[2]), dispatchers)
+        assertSame(a.providers[0], providers[0])
+        assertSame(z.providers[4], providers[2])
+        assertSame(a.dispatchers[0], dispatchers[0])
+        assertSame(z.dispatchers[2], dispatchers[2])
+        assertFalse(providers[0].enable)
+        assertFalse(dispatchers[1].enable)
+        val rootScanner = ScanningDispatcher("/")
+        runBlocking { rootScanner.scanDispatchers() }
+        assertSame(z.dispatchers[0], rootScanner.dispatchers.values.single())
+    }
+
+    @Test
+    fun repeatedScansRefreshStaleEntriesAfterUnloadAndKeepMapInstances() = withRuntimeRoot { root ->
+        writePlugin(root, entry = ScanEntry::class.java)
+        PlugManager.loadPlugin(ID, VERSION)
+        val scanner = ScanningDispatcher("/Room")
+        val providers = scanner.providers
+        val dispatchers = scanner.dispatchers
+        val staleProvider = LoadingProvider("/Room")
+        val staleDispatcher = ScanningDispatcher("/Room/Stale")
+        providers[staleProvider.id] = staleProvider
+        dispatchers[staleDispatcher.id] = staleDispatcher
+        runBlocking {
+            scanner.scanProviders()
+            scanner.scanDispatchers()
+        }
+        assertFalse(staleProvider.id in providers)
+        assertFalse(staleDispatcher.id in dispatchers)
+        val expectedProviders = providers.toMap()
+        val expectedDispatchers = dispatchers.toMap()
+
+        runBlocking {
+            scanner.scanProviders()
+            scanner.scanDispatchers()
+        }
+        assertEquals(expectedProviders, providers)
+        assertEquals(expectedDispatchers, dispatchers)
+        PlugManager.unloadPlugin(ID)
+        runBlocking {
+            scanner.scanProviders()
+            scanner.scanDispatchers()
+        }
+
+        assertSame(providers, scanner.providers)
+        assertSame(dispatchers, scanner.dispatchers)
+        assertTrue(providers.isEmpty())
+        assertTrue(dispatchers.isEmpty())
+    }
+
+    @Test
+    fun eachScanOnlyUpdatesItsOwnMapWithoutLifecycleBindingOrRecursiveScanning() = withRuntimeRoot { root ->
+        writePlugin(root, entry = ScanEntry::class.java)
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+        val scanner = ScanningDispatcher("/Room")
+        val staleDispatcher = ScanningDispatcher("/Room/Stale")
+        scanner.dispatchers[staleDispatcher.id] = staleDispatcher
+        val onEvent: suspend (Event) -> Unit = { error("Scanning must not deliver events") }
+        loaded.providers.forEach { it.emit = onEvent }
+        loaded.dispatchers.forEach { it.feedUp = onEvent }
+        val child = loaded.dispatchers[1]
+        val childProvider = LoadingProvider("/Room/Zeta")
+        val childDispatcher = ScanningDispatcher("/Room/Zeta/Stale")
+        child.providers[childProvider.id] = childProvider
+        child.dispatchers[childDispatcher.id] = childDispatcher
+
+        runBlocking { scanner.scanProviders() }
+        assertSame(staleDispatcher, scanner.dispatchers.values.single())
+        val scannedProviders = scanner.providers.toMap()
+        runBlocking { scanner.scanDispatchers() }
+
+        assertEquals(scannedProviders, scanner.providers)
+        assertSame(childProvider, child.providers.values.single())
+        assertSame(childDispatcher, child.dispatchers.values.single())
+        loaded.providers.forEach {
+            assertSame(onEvent, it.emit)
+            assertEquals(Provider.Status.STOP, it.status)
+        }
+        loaded.dispatchers.forEach { assertSame(onEvent, it.feedUp) }
+    }
+
+    @Test
+    fun duplicateIdsAndRepeatedInstancesFailWithoutReplacingExistingMaps() {
+        for (entry in listOf(DuplicateIdsEntry::class.java, RepeatedComponentsEntry::class.java)) {
+            withRuntimeRoot { root ->
+                writePlugin(root, entry = entry)
+                PlugManager.loadPlugin(ID, VERSION)
+                val scanner = ScanningDispatcher("/Room")
+                val oldProvider = LoadingProvider("/Room")
+                val oldDispatcher = ScanningDispatcher("/Room/Existing")
+                scanner.providers[oldProvider.id] = oldProvider
+                scanner.dispatchers[oldDispatcher.id] = oldDispatcher
+
+                assertFailsWith<IllegalStateException> { runBlocking { scanner.scanProviders() } }
+                assertSame(oldProvider, scanner.providers.values.single())
+                assertSame(oldDispatcher, scanner.dispatchers.values.single())
+                assertFailsWith<IllegalStateException> { runBlocking { scanner.scanDispatchers() } }
+                assertSame(oldProvider, scanner.providers.values.single())
+                assertSame(oldDispatcher, scanner.dispatchers.values.single())
+            }
+        }
+    }
+
+    @Test
+    fun duplicateChildTopicsFailAtomicallyWhileProvidersCanShareATopic() = withRuntimeRoot { root ->
+        writePlugin(root, entry = QueryEntry::class.java)
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+        val scanner = ScanningDispatcher("/Room")
+        val oldDispatcher = ScanningDispatcher("/Room/Existing")
+        scanner.dispatchers[oldDispatcher.id] = oldDispatcher
+
+        runBlocking { scanner.scanProviders() }
+        assertEquals(listOf(loaded.providers[0], loaded.providers[4]), scanner.providers.values.toList())
+        assertFailsWith<IllegalStateException> { runBlocking { scanner.scanDispatchers() } }
+
+        assertSame(oldDispatcher, scanner.dispatchers.values.single())
+        assertEquals(listOf(loaded.providers[0], loaded.providers[4]), scanner.providers.values.toList())
+    }
+
+    @Test
+    fun aChildCannotReuseTheParentDispatcherId() = withRuntimeRoot { root ->
+        writePlugin(root, entry = ScanEntry::class.java)
+        val loaded = PlugManager.loadPlugin(ID, VERSION)
+        val scanner = ScanningDispatcher("/Room", id = loaded.dispatchers[2].id)
+        val oldDispatcher = ScanningDispatcher("/Room/Existing")
+        scanner.dispatchers[oldDispatcher.id] = oldDispatcher
+
+        assertFailsWith<IllegalStateException> { runBlocking { scanner.scanDispatchers() } }
+
+        assertSame(oldDispatcher, scanner.dispatchers.values.single())
+    }
+
+    @Test
+    fun invalidParentTopicsDoNotClearEitherMap() = withRuntimeRoot { _ ->
+        for (topic in listOf("", "Room", "/Room/", "/Room//Child", "/Room/..")) {
+            val scanner = ScanningDispatcher(topic)
+            val oldProvider = LoadingProvider("/Room")
+            val oldDispatcher = ScanningDispatcher("/Room/Existing")
+            scanner.providers[oldProvider.id] = oldProvider
+            scanner.dispatchers[oldDispatcher.id] = oldDispatcher
+
+            assertFailsWith<IllegalArgumentException> { runBlocking { scanner.scanProviders() } }
+            assertFailsWith<IllegalArgumentException> { runBlocking { scanner.scanDispatchers() } }
+
+            assertSame(oldProvider, scanner.providers.values.single())
+            assertSame(oldDispatcher, scanner.dispatchers.values.single())
+        }
+    }
+
     @Test
     fun topicQueriesDiscoverOnlyLoadedPluginsAndUpdateAfterUnload() = withRuntimeRoot { root ->
         assertTrue(PlugManager.findProviders("/Loading").isEmpty())
@@ -581,6 +753,16 @@ class PlugManagerLoadingJvmTest {
             if (previous == null) System.clearProperty("user.dir") else System.setProperty("user.dir", previous)
             root.toFile().deleteRecursively()
         }
+    }
+
+    private class ScanningDispatcher(
+        override val topic: String,
+        override val id: Uuid = Uuid.random(),
+    ) : BaseDispatcher() {
+        override val name = "Host scan test dispatcher"
+        override val desc = "Scans installed test plugin components"
+        override suspend fun dispatch(event: Event) = Unit
+        override suspend fun receive(event: Event) = Unit
     }
 
     private class HostEvent : Event {

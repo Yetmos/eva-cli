@@ -75,7 +75,9 @@ Windows PowerShell 使用 `.\gradlew.bat assembleEvaPlugin`。
 
 独立工程使用 `sdk/plugin-api` 源码模块，内容从宿主现有的事件、Provider、Dispatcher
 和插件契约复制，不需要本地 Maven 仓库，也不要求 Android SDK。该快照保留宿主当前的
-基础实现和未完成能力，仅用于构建与测试；正式运行仍由宿主提供这些类。
+基础实现和未完成能力，并为 Dispatcher 扫描提供仅用于编译的 `PlugManager` 查询入口；
+在独立 SDK 中调用该入口会抛出 `UnsupportedOperationException`。正式运行仍由宿主提供这些类，
+宿主安装器、加载器和运行时注册表不随插件打包。
 不要修改快照来扩展宿主 API，应先在宿主实现并更新插件对应的 API 版本。
 
 仓库尚未发布统一插件 SDK，这种随包提供源码的方式用于保证当前示例可独立重建。
@@ -117,7 +119,7 @@ JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 
 解压工程执行相同任务时省略 `:examples:echo-plugin:` 前缀。
 宿主加载时读取包根目录 `plugin.json`，从 `prebuilt/jvm/plugin.jar` 创建
-`com.eva_cli.examples.echo.EchoPlugin`。当前宿主的 `PlugManager` 安装功能尚未实现；
+`com.eva_cli.examples.echo.EchoPlugin`。JVM 宿主已提供 `PlugManager.installPlugin` 和 `loadPlugin`；
 已有加载测试提供可执行的最小宿主流程。
 
 ## 宿主调用约定
@@ -133,7 +135,8 @@ JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 并恢复处理状态；若输出回调停止了组件，则保留 `STOP` 状态。
 
 `PluginEntry` 仅提供组件，不负责启动它们。示例可由测试宿主直接驱动；接入正式
-Dispatcher 树还需要宿主实现组件注册和 `scanProviders` / `scanDispatchers`。
+Dispatcher 树使用宿主的 `scanProviders` / `scanDispatchers` 挂接已加载组件。
+本示例只有 `/Echo` Provider，接入完整调度树还需要相应的 `/Echo` Dispatcher 和事件路由。
 
 ## 扩展示例
 

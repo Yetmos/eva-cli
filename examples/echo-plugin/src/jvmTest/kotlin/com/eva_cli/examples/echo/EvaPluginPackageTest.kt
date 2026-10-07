@@ -31,6 +31,7 @@ class EvaPluginPackageTest {
             "src/jvmTest/kotlin/com/eva_cli/examples/echo/EchoPluginLoadingTest.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/PluginEntry.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/PluginManifest.kt",
+            "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/PlugManager.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/provider/WidgetProvider.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/dispatcher/WidgetDispatcher.kt",
             "sdk/plugin-api/src/commonMain/kotlin/com/eva_cli/core/widgets/event/Event.kt",
