@@ -18,7 +18,15 @@ import kotlin.test.assertTrue
 class EchoPluginLoadingTest {
     @Test
     fun loadsTheManifestEntryFromTheBuiltJarAndExchangesHostEvents() = runBlocking {
-        val directory = File(checkNotNull(System.getProperty("eva.echoPlugin.directory")))
+        assertPluginCanExchangeEvents(File(checkNotNull(System.getProperty("eva.echoPlugin.directory"))))
+    }
+
+    @Test
+    fun loadsTheReleaseArtifactAndExchangesHostEvents() = runBlocking {
+        assertPluginCanExchangeEvents(File(checkNotNull(System.getProperty("eva.echoPlugin.stagingDirectory"))))
+    }
+
+    private suspend fun assertPluginCanExchangeEvents(directory: File) {
         val manifest = Json.decodeFromString<PluginManifest>(directory.resolve("plugin.json").readText())
         assertEquals(1, manifest.formatVersion)
         assertEquals(1, manifest.apiVersion)

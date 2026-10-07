@@ -5,7 +5,9 @@
 当前仅有 `Eva` 与 `Runtime` 基础入口骨架，CLI 提供帮助和命令解析框架。agent 编排、脚本执行与沙盒功能尚未实现。
 
 插件开发可参考 [Echo Plugin 示例](examples/echo-plugin/README.md)，其中包含最小入口、
-文本 Provider、插件清单及 JVM JAR 加载测试。
+文本 Provider、插件清单、JVM JAR 加载测试及完整 `.eva` 发布任务。
+在本目录执行 `./gradlew :examples:echo-plugin:assembleEvaPlugin`，即可生成包含独立源码工程、
+API 源码快照和 JVM 产物的发布包；解压后可以独立构建和重新打包。
 
 ## 模块
 

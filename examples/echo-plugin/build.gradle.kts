@@ -23,21 +23,4 @@ kotlin {
     }
 }
 
-val pluginDirectory = layout.buildDirectory.dir("plugin")
-val prepareJvmPlugin = tasks.register<Sync>("prepareJvmPlugin") {
-    group = "build"
-    description = "组装供 JVM 测试宿主加载的插件清单和 JAR。"
-    into(pluginDirectory)
-    from("plugin.json")
-    from(tasks.named<Jar>("jvmJar").flatMap { it.archiveFile }) {
-        into("prebuilt/jvm")
-        rename { "plugin.jar" }
-    }
-}
-
-tasks.named<Test>("jvmTest") {
-    dependsOn(prepareJvmPlugin)
-    inputs.dir(pluginDirectory)
-    systemProperty("eva.echoPlugin.directory", pluginDirectory.get().asFile.absolutePath)
-    systemProperty("eva.echoPlugin.version", project.version.toString())
-}
+apply(from = "packaging/eva-plugin.gradle.kts")

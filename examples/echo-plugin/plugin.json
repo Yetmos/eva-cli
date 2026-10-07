@@ -10,5 +10,13 @@
       "entryClass": "com.eva_cli.examples.echo.EchoPlugin",
       "minJavaVersion": 17
     }
+  },
+  "source": {
+    "coordinate": "com.eva_cli:echo-plugin:0.1.0-alpha",
+    "directory": ".",
+    "gradleProject": ":"
+  },
+  "builtWith": {
+    "kotlin": "2.4.20"
   }
 }
