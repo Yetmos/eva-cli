@@ -53,6 +53,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -73,6 +74,32 @@ object LoadingFixtureHooks {
 }
 
 class PlugManagerLoadingJvmTest {
+    @Test
+    fun runtimeDataBackupAndRestoreRequireTheAffectedPluginToBeUnloaded() = withRuntimeRoot { root ->
+        writePlugin(root)
+        val context = PlugManager.loadPlugin(ID, VERSION).context
+        runBlocking { context.files.write("state.txt", "saved".encodeToByteArray()) }
+        PlugManager.backup()
+        val snapshot = root.resolve("Backup/plugins.zip")
+        val previous = Files.readAllBytes(snapshot)
+
+        assertFailsWith<IllegalStateException> { PlugManager.backup(includeRuntimeData = true) }
+        assertContentEquals(previous, Files.readAllBytes(snapshot))
+
+        PlugManager.unloadPlugin(ID)
+        PlugManager.backup(includeRuntimeData = true)
+        val reloaded = PlugManager.loadPlugin(ID, VERSION)
+        runBlocking { reloaded.context.files.write("state.txt", "current".encodeToByteArray()) }
+
+        assertFailsWith<IllegalStateException> { PlugManager.restore() }
+        assertSame(reloaded, PlugManager.loadedList.single())
+        runBlocking { assertEquals("current", reloaded.context.files.read("state.txt").decodeToString()) }
+
+        PlugManager.unloadPlugin(ID)
+        PlugManager.restore()
+        assertEquals("saved", Files.readString(root.resolve("Plugins/$ID/Data/files/state.txt")))
+    }
+
     @Test
     fun unloadFromPluginScopeFailsWithoutRemovingOrClosingItsRegistration() = withRuntimeRoot { root ->
         writePlugin(root)

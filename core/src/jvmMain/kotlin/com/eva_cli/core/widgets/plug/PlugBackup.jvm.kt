@@ -24,6 +24,7 @@ private data class PluginSnapshot(
     val formatVersion: Int,
     val plugins: List<SnapshotPlugin>,
     val entries: List<SnapshotEntry>,
+    val includeRuntimeData: Boolean = false,
 )
 
 @Serializable
@@ -32,7 +33,7 @@ private data class SnapshotPlugin(val id: String, val version: String)
 @Serializable
 private data class SnapshotEntry(val path: String, val sha256: String?)
 
-internal actual fun backupLocalPlugins() {
+internal actual fun backupLocalPlugins(includeRuntimeData: Boolean) {
     try {
         val root = Path.of(FileUtils.rootPath()).toAbsolutePath().normalize()
         val pluginsDirectory = root.resolve(Configure.PLUGINS_DIR)
@@ -43,6 +44,8 @@ internal actual fun backupLocalPlugins() {
         val snapshot = backupDirectory.resolve(SNAPSHOT_FILE)
         requireSnapshotOrAbsent(snapshot)
         val installed = listInstalledPlugins()
+        val pluginIds = installed.map { it.manifest.id }.toSet()
+        if (includeRuntimeData) requirePluginsUnloaded(pluginIds)
         val temporary = Files.createTempFile(backupDirectory, ".eva-backup-", ".zip")
         try {
             val entries = mutableListOf<SnapshotEntry>()
@@ -55,13 +58,7 @@ internal actual fun backupLocalPlugins() {
                     zip.closeEntry()
                     entries.add(SnapshotEntry(name, null))
                 }
-                addDirectory(SNAPSHOT_PLUGINS)
-                for (plugin in installed) {
-                    addDirectory("$SNAPSHOT_PLUGINS${plugin.manifest.id}/")
-                    addDirectory(
-                        "$SNAPSHOT_PLUGINS${plugin.manifest.id}/${Configure.PLUGIN_VERSIONS_DIR}/",
-                    )
-                    val directory = Path.of(plugin.directory)
+                fun addTree(directory: Path) {
                     Files.walk(directory).use { paths ->
                         paths.sorted().forEach { path ->
                             val relative = pluginsDirectory.relativize(path).joinToString("/")
@@ -80,10 +77,26 @@ internal actual fun backupLocalPlugins() {
                         }
                     }
                 }
+                addDirectory(SNAPSHOT_PLUGINS)
+                for (plugin in installed) {
+                    addDirectory("$SNAPSHOT_PLUGINS${plugin.manifest.id}/")
+                    addDirectory(
+                        "$SNAPSHOT_PLUGINS${plugin.manifest.id}/${Configure.PLUGIN_VERSIONS_DIR}/",
+                    )
+                    addTree(Path.of(plugin.directory))
+                }
+                if (includeRuntimeData) {
+                    for (id in pluginIds) {
+                        val data = pluginsDirectory.resolve(id).resolve(Configure.DATA_DIR)
+                        requireDirectoryOrAbsent(data)
+                        if (Files.isDirectory(data, NOFOLLOW_LINKS)) addTree(data)
+                    }
+                }
                 val index = PluginSnapshot(
-                    formatVersion = 1,
+                    formatVersion = if (includeRuntimeData) 2 else 1,
                     plugins = installed.map { SnapshotPlugin(it.manifest.id, it.manifest.version) },
                     entries = entries,
+                    includeRuntimeData = includeRuntimeData,
                 )
                 zip.putNextEntry(ZipEntry(SNAPSHOT_INDEX))
                 zip.write(Json.encodeToString(index).toByteArray(Charsets.UTF_8))
@@ -124,14 +137,22 @@ internal actual fun restoreLocalPlugins() {
         val removedEmptyPluginDirectories = mutableListOf<Path>()
         var rollbackFailed = false
         try {
-            stageSnapshot(snapshot, staging)
+            val index = stageSnapshot(snapshot, staging)
+            val runtimeDataIds = if (index.includeRuntimeData) index.plugins.map { it.id }.toSet() else emptySet()
+            if (index.includeRuntimeData) {
+                requirePluginsUnloaded(runtimeDataIds)
+                for (id in runtimeDataIds) {
+                    val pluginDirectory = pluginsDirectory.resolve(id)
+                    requireDirectoryOrAbsent(pluginDirectory)
+                    requireDirectoryOrAbsent(pluginDirectory.resolve(Configure.DATA_DIR))
+                }
+            }
             requireDirectoryOrAbsent(pluginsDirectory)
             if (Files.notExists(pluginsDirectory, NOFOLLOW_LINKS)) {
                 Files.createDirectories(pluginsDirectory)
             }
             try {
-                // Keep each plugin's Data/ and Cache/ directories in place. Only the
-                // versioned installation subtree participates in a plugin snapshot.
+                // Save replaced subtrees until all versions and optional Data are restored.
                 Files.newDirectoryStream(pluginsDirectory).use { stream ->
                     stream.toList().sorted().forEach { pluginDirectory ->
                         check(Files.isDirectory(pluginDirectory, NOFOLLOW_LINKS)) {
@@ -149,6 +170,16 @@ internal actual fun restoreLocalPlugins() {
                         moveIntoPlace(versions, previousVersions)
                         movedExisting.add(versions to previousVersions)
                     }
+                }
+
+                for (id in runtimeDataIds) {
+                    val data = pluginsDirectory.resolve(id).resolve(Configure.DATA_DIR)
+                    if (Files.notExists(data, NOFOLLOW_LINKS)) continue
+                    requireDirectoryOrAbsent(data)
+                    val previousData = previous.resolve(Configure.PLUGINS_DIR).resolve(id).resolve(Configure.DATA_DIR)
+                    Files.createDirectories(previousData.parent)
+                    moveIntoPlace(data, previousData)
+                    movedExisting.add(data to previousData)
                 }
 
                 val stagedPlugins = staging.resolve(Configure.PLUGINS_DIR)
@@ -173,6 +204,14 @@ internal actual fun restoreLocalPlugins() {
                         val targetVersions = targetPlugin.resolve(Configure.PLUGIN_VERSIONS_DIR)
                         moveIntoPlace(stagedVersions, targetVersions)
                         movedRestored.add(targetVersions)
+                        if (id in runtimeDataIds) {
+                            val stagedData = stagedPlugin.resolve(Configure.DATA_DIR)
+                            if (Files.isDirectory(stagedData, NOFOLLOW_LINKS)) {
+                                val targetData = targetPlugin.resolve(Configure.DATA_DIR)
+                                moveIntoPlace(stagedData, targetData)
+                                movedRestored.add(targetData)
+                            }
+                        }
                     }
                 }
 
@@ -221,7 +260,7 @@ internal actual fun restoreLocalPlugins() {
     }
 }
 
-private fun stageSnapshot(archive: Path, destination: Path) {
+private fun stageSnapshot(archive: Path, destination: Path): PluginSnapshot {
     val index = ZipFile(archive.toFile()).use { zip ->
         val names = mutableSetOf<String>()
         val resolvedNames = mutableSetOf<Path>()
@@ -264,10 +303,13 @@ private fun stageSnapshot(archive: Path, destination: Path) {
         check(manifest.id == plugin.id && manifest.version == plugin.version) { "插件快照清单与目录不匹配" }
         validateManifest(manifest, directory)
     }
+    return index
 }
 
 private fun validateSnapshotIndex(index: PluginSnapshot) {
-    check(index.formatVersion == 1) { "不支持的插件快照版本：${index.formatVersion}" }
+    check(index.formatVersion in 1..2 && (index.formatVersion >= 2 || !index.includeRuntimeData)) {
+        "不支持的插件快照版本或运行数据标记：${index.formatVersion}"
+    }
     check(index.plugins.distinct().size == index.plugins.size) { "插件快照包含重复插件版本" }
     val pluginDirectories = mutableSetOf(SNAPSHOT_PLUGINS)
     val versionDirectories = index.plugins.map { plugin ->
@@ -278,11 +320,16 @@ private fun validateSnapshotIndex(index: PluginSnapshot) {
         )
         "$SNAPSHOT_PLUGINS${plugin.id}/${Configure.PLUGIN_VERSIONS_DIR}/${plugin.version}/"
     }
+    val dataDirectories = if (index.includeRuntimeData) {
+        index.plugins.map { "$SNAPSHOT_PLUGINS${it.id}/${Configure.DATA_DIR}/" }.toSet()
+    } else {
+        emptySet()
+    }
     val paths = mutableSetOf<String>()
     for (entry in index.entries) {
         requireCanonicalSnapshotPath(entry.path)
         check(paths.add(entry.path)) { "插件快照清单包含重复路径：${entry.path}" }
-        check(entry.path in pluginDirectories || versionDirectories.any { entry.path.startsWith(it) }) {
+        check(entry.path in pluginDirectories || (versionDirectories + dataDirectories).any { entry.path.startsWith(it) }) {
             "插件快照包含未声明的插件路径：${entry.path}"
         }
         check(if (entry.path.endsWith('/')) entry.sha256 == null else entry.sha256?.matches(Regex("[0-9a-f]{64}")) == true) {
@@ -290,6 +337,16 @@ private fun validateSnapshotIndex(index: PluginSnapshot) {
         }
     }
     check(paths.containsAll(pluginDirectories + versionDirectories)) { "插件快照缺少插件目录" }
+    for (directory in dataDirectories) {
+        check(paths.none { it.startsWith(directory) } || directory in paths) {
+            "插件快照缺少运行数据根目录：$directory"
+        }
+    }
+}
+
+private fun requirePluginsUnloaded(ids: Set<String>) {
+    val loaded = listLoadedPlugins().map { it.manifest.id }.filter { it in ids }
+    check(loaded.isEmpty()) { "备份或恢复运行数据前须先释放已加载插件：${loaded.joinToString()}" }
 }
 
 private fun requireCanonicalSnapshotPath(name: String) {

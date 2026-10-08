@@ -177,6 +177,9 @@ context.files.write("preview.json", saved, PluginFileArea.CACHE)
 JVM 宿主将普通文件保存在 `Plugins/<id>/Data/files/`，缓存保存在 `Plugins/<id>/Cache/`，
 偏好和数据库分别保存在同一插件的 `Data/preferences.preferences_pb` 和 `Data/databases/`。
 这些目录与 `versions/<version>/` 同级，升级或卸载某个安装版本后继续保留。
+宿主备份插件时默认不包含这些运行数据；需要一并保存持久数据时调用
+`PlugManager.backup(includeRuntimeData = true)`。该选项只包含 `Data`，始终排除可重新生成的 `Cache`，
+且备份或恢复前应先停止并卸载对应插件。
 未声明公共资源的插件不能读取 `RESOURCES`。持久数据与安装版本分开保存，卸载加载器不会删除数据。
 
 Room 数据库由插件提供 schema、DAO、生成代码和迁移。宿主管理数据库路径、实例复用与关闭，

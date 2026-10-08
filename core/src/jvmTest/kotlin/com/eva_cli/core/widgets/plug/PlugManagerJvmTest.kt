@@ -9,6 +9,9 @@ import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -71,7 +74,7 @@ class PlugManagerJvmTest {
         Files.writeString(savedRoot.resolve("Data/files/state.txt"), "keep data")
         Files.createDirectories(savedRoot.resolve("Cache"))
         Files.writeString(savedRoot.resolve("Cache/index.txt"), "keep cache")
-        PlugManager.backup()
+        PlugManager.backup(includeRuntimeData = false)
 
         ZipFile(root.resolve("Backup/plugins.zip").toFile()).use { zip ->
             assertTrue(zip.entries().asSequence().none { it.name.contains("/Data/") || it.name.contains("/Cache/") })
@@ -90,6 +93,189 @@ class PlugManagerJvmTest {
         assertEquals("com.example.saved", PlugManager.installedList.single().manifest.id)
         assertFalse(Files.exists(extra))
         assertEquals("extra data", Files.readString(extraData.resolve("state.txt")))
+    }
+
+    @Test
+    fun runtimeDataBackupRestoresSharedDataOnceForMultipleVersions() = withRuntimeRoot { root ->
+        writeInstalledFixture(root, "com.example.test")
+        val second = createEva(root.resolve("second.eva"), version = "2.0.0")
+        PlugManager.installPlugin(PluginSource.File(second.toString()))
+        val plugin = root.resolve("Plugins/com.example.test")
+        val data = Files.createDirectories(plugin.resolve("Data"))
+        Files.createDirectories(data.resolve("files/empty"))
+        Files.createDirectories(data.resolve("databases"))
+        Files.write(data.resolve("preferences.preferences_pb"), byteArrayOf(0, 1, -1))
+        Files.writeString(data.resolve("files/state.txt"), "saved state")
+        Files.writeString(data.resolve("databases/tasks.db"), "saved database")
+        val expected = directoryContents(data)
+        val cache = Files.createDirectory(plugin.resolve("Cache"))
+        Files.writeString(cache.resolve("index.txt"), "current cache")
+
+        PlugManager.backup(includeRuntimeData = true)
+
+        ZipFile(root.resolve("Backup/plugins.zip").toFile()).use { zip ->
+            val names = zip.entries().asSequence().map { it.name }.toList()
+            assertEquals(1, names.count { it == "Plugins/com.example.test/Data/" })
+            assertEquals(1, names.count { it == "Plugins/com.example.test/Data/files/state.txt" })
+            assertTrue(names.none { it.startsWith("Plugins/com.example.test/Cache/") })
+            val metadata = zip.getInputStream(zip.getEntry("backup.json")).bufferedReader().use { it.readText() }
+            val index = Json.parseToJsonElement(metadata).jsonObject
+            assertEquals("2", index.getValue("formatVersion").jsonPrimitive.content)
+            assertEquals("true", index.getValue("includeRuntimeData").jsonPrimitive.content)
+        }
+        Files.writeString(data.resolve("files/state.txt"), "changed state")
+        Files.writeString(data.resolve("files/new.txt"), "created after backup")
+        Files.delete(data.resolve("databases/tasks.db"))
+        Files.writeString(cache.resolve("index.txt"), "changed cache")
+        PlugManager.uninstallPlugin("com.example.test", "1.0.0")
+        writeInstalledFixture(root, "com.example.extra")
+        val extraData = Files.createDirectories(root.resolve("Plugins/com.example.extra/Data"))
+        Files.writeString(extraData.resolve("keep.txt"), "unrelated data")
+
+        repeat(2) {
+            PlugManager.restore()
+            assertEquals(expected, directoryContents(data))
+            assertEquals("changed cache", Files.readString(cache.resolve("index.txt")))
+            assertEquals(listOf("1.0.0", "2.0.0"), PlugManager.installedList.map { it.manifest.version })
+            assertEquals("unrelated data", Files.readString(extraData.resolve("keep.txt")))
+        }
+    }
+
+    @Test
+    fun runtimeDataBackupRestoresAbsentAndEmptyDataDirectories() = withRuntimeRoot { root ->
+        writeInstalledFixture(root, "com.example.absent")
+        writeInstalledFixture(root, "com.example.empty")
+        val absent = root.resolve("Plugins/com.example.absent/Data")
+        val empty = Files.createDirectory(root.resolve("Plugins/com.example.empty/Data"))
+        PlugManager.backup(includeRuntimeData = true)
+        Files.createDirectory(absent)
+        Files.writeString(absent.resolve("late.txt"), "created after backup")
+        Files.writeString(empty.resolve("late.txt"), "created after backup")
+
+        PlugManager.restore()
+
+        assertFalse(Files.exists(absent))
+        assertTrue(Files.isDirectory(empty))
+        assertTrue(directoryContents(empty).isEmpty())
+    }
+
+    @Test
+    fun legacyInstallationSnapshotStillPreservesRuntimeData() = withRuntimeRoot { root ->
+        writeInstalledFixture(root, "com.example.saved")
+        PlugManager.backup()
+        ZipFile(root.resolve("Backup/plugins.zip").toFile()).use { zip ->
+            val metadata = zip.getInputStream(zip.getEntry("backup.json")).bufferedReader().use { it.readText() }
+            val index = Json.parseToJsonElement(metadata).jsonObject
+            assertEquals("1", index.getValue("formatVersion").jsonPrimitive.content)
+            assertFalse("includeRuntimeData" in index)
+        }
+        val data = Files.createDirectory(root.resolve("Plugins/com.example.saved/Data"))
+        Files.writeString(data.resolve("keep.txt"), "current data")
+
+        PlugManager.restore()
+
+        assertEquals("current data", Files.readString(data.resolve("keep.txt")))
+    }
+
+    @Test
+    fun rejectsMissingOrTamperedRuntimeDataBeforeModifyingInstallations() {
+        for (missing in listOf(false, true)) {
+            withRuntimeRoot { root ->
+                writeInstalledFixture(root, "com.example.saved")
+                val data = Files.createDirectory(root.resolve("Plugins/com.example.saved/Data"))
+                Files.writeString(data.resolve("state.txt"), "snapshot data")
+                PlugManager.backup(includeRuntimeData = true)
+                Files.writeString(data.resolve("state.txt"), "current data")
+                val expected = directoryContents(root.resolve("Plugins"))
+                rewriteSnapshot(root) { name, bytes ->
+                    if (name.endsWith("/Data/state.txt")) {
+                        if (missing) null else "tampered data".encodeToByteArray()
+                    } else bytes
+                }
+
+                assertFailsWith<IllegalStateException> { PlugManager.restore() }
+
+                assertEquals(expected, directoryContents(root.resolve("Plugins")))
+            }
+        }
+    }
+
+    @Test
+    fun rejectsRuntimeDataWithoutAnEnabledFlagOrInALegacySnapshot() {
+        for (legacy in listOf(false, true)) {
+            withRuntimeRoot { root ->
+                writeInstalledFixture(root, "com.example.saved")
+                val data = Files.createDirectory(root.resolve("Plugins/com.example.saved/Data"))
+                Files.writeString(data.resolve("state.txt"), "keep current data")
+                PlugManager.backup(includeRuntimeData = true)
+                val expected = directoryContents(root.resolve("Plugins"))
+                rewriteSnapshot(root) { name, bytes ->
+                    if (name != "backup.json") bytes else bytes.decodeToString().let { json ->
+                        if (legacy) json.replace("\"formatVersion\":2", "\"formatVersion\":1")
+                        else json.replace("\"includeRuntimeData\":true", "\"includeRuntimeData\":false")
+                    }.encodeToByteArray()
+                }
+
+                assertFailsWith<IllegalStateException> { PlugManager.restore() }
+
+                assertEquals(expected, directoryContents(root.resolve("Plugins")))
+            }
+        }
+    }
+
+    @Test
+    fun runtimeDataBackupRejectsLinksAndKeepsThePreviousSnapshot() {
+        if (System.getProperty("os.name").startsWith("Windows")) return
+        for (linkedRoot in listOf(false, true)) {
+            withRuntimeRoot { root ->
+                writeInstalledFixture(root, "com.example.saved")
+                PlugManager.backup()
+                val snapshot = root.resolve("Backup/plugins.zip")
+                val previous = Files.readAllBytes(snapshot)
+                val outside = Files.createDirectory(root.resolve("outside"))
+                Files.writeString(outside.resolve("keep.txt"), "outside data")
+                val data = root.resolve("Plugins/com.example.saved/Data")
+                if (linkedRoot) Files.createSymbolicLink(data, outside) else {
+                    Files.createDirectory(data)
+                    Files.createSymbolicLink(data.resolve("linked"), outside)
+                }
+
+                assertFailsWith<IllegalStateException> { PlugManager.backup(includeRuntimeData = true) }
+
+                assertContentEquals(previous, Files.readAllBytes(snapshot))
+                assertEquals("outside data", Files.readString(outside.resolve("keep.txt")))
+            }
+        }
+    }
+
+    @Test
+    fun runtimeDataRestoreRollsBackDataAndVersionsWhenALaterDataDirectoryIsInvalid() {
+        for (linked in listOf(false, true)) {
+            if (linked && System.getProperty("os.name").startsWith("Windows")) continue
+            withRuntimeRoot { root ->
+                val first = writeInstalledFixture(root, "com.example.a")
+                val second = writeInstalledFixture(root, "com.example.z")
+                val firstData = Files.createDirectory(first.parent.parent.resolve("Data"))
+                Files.writeString(firstData.resolve("state.txt"), "snapshot data")
+                PlugManager.backup(includeRuntimeData = true)
+                Files.writeString(first.resolve("README.md"), "current install")
+                Files.writeString(firstData.resolve("state.txt"), "current data")
+                val expected = directoryContents(first.parent.parent)
+                val outside = Files.createDirectory(root.resolve("outside"))
+                Files.writeString(outside.resolve("keep.txt"), "outside data")
+                val blocked = second.parent.parent.resolve("Data")
+                if (linked) Files.createSymbolicLink(blocked, outside)
+                else Files.writeString(blocked, "keep collision")
+
+                assertFailsWith<IllegalStateException> { PlugManager.restore() }
+
+                assertEquals(expected, directoryContents(first.parent.parent))
+                assertTrue(Files.isRegularFile(second.resolve("plugin.json")))
+                assertEquals("outside data", Files.readString(outside.resolve("keep.txt")))
+                if (linked) assertTrue(Files.isSymbolicLink(blocked))
+                else assertEquals("keep collision", Files.readString(blocked))
+            }
+        }
     }
 
     @Test

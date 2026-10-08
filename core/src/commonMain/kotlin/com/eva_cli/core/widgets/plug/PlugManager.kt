@@ -144,12 +144,21 @@ object PlugManager {
      * 包含安装版本目录中的资源、源码和空目录，不包含 Data/Cache；失败时抛出 [IllegalStateException]。
      * 此操作同步访问文件，应在后台线程调用；Android/iOS 当前不支持备份。
      */
-    fun backup(): Unit = backupLocalPlugins()
+    fun backup(): Unit = backup(includeRuntimeData = false)
+
+    /**
+     * [includeRuntimeData] 为 true 时，同时备份已安装插件按 ID 共享的 Data，始终排除 Cache。
+     * 包含运行数据时，相关插件须先停止并卸载已加载实例，避免数据库或文件仍在写入。
+     * 备份期间不得并发安装、加载、卸载插件或写入运行数据。
+     */
+    fun backup(includeRuntimeData: Boolean): Unit = backupLocalPlugins(includeRuntimeData)
 
     /**
      * 校验 Backup/plugins.zip 后恢复完整安装快照，移除备份后新增的插件版本。
-     * 仅替换各插件的 versions 目录，保留 Data/Cache，包括快照之外插件的运行数据。
-     * 快照不存在、损坏或恢复失败时抛出 [IllegalStateException]；不处理已加载的实例。
+     * 默认快照仅替换 versions；包含运行数据的快照同时替换快照内插件的 Data。
+     * 快照中的 Data 缺失表示空状态，会清除该插件当前的 Data；始终保留 Cache 和快照外插件的 Data。
+     * 恢复运行数据前，相关插件须先停止并卸载已加载实例；恢复期间不得并发生命周期操作或数据写入。
+     * 快照不存在、损坏或恢复失败时抛出 [IllegalStateException]；不会自动卸载已加载的实例。
      * 此操作同步访问文件，应在后台线程调用；Android/iOS 当前不支持恢复。
      */
     fun restore(): Unit = restoreLocalPlugins()
@@ -167,6 +176,6 @@ internal expect fun listLoadedPlugins(): List<LoadedPlugin>
 
 internal expect fun uninstallLocalPlugin(id: String, version: String): Boolean
 
-internal expect fun backupLocalPlugins()
+internal expect fun backupLocalPlugins(includeRuntimeData: Boolean)
 
 internal expect fun restoreLocalPlugins()

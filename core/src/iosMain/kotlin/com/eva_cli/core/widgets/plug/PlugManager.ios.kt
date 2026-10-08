@@ -19,7 +19,7 @@ internal actual fun listLoadedPlugins(): List<LoadedPlugin> =
 internal actual fun uninstallLocalPlugin(id: String, version: String): Boolean =
     throw UnsupportedOperationException("iOS 插件卸载尚未实现：$id:$version")
 
-internal actual fun backupLocalPlugins(): Unit =
+internal actual fun backupLocalPlugins(includeRuntimeData: Boolean): Unit =
     throw UnsupportedOperationException("iOS 插件备份尚未实现")
 
 internal actual fun restoreLocalPlugins(): Unit =
