@@ -20,7 +20,7 @@ object Configure {
 
     /**
      * 检查项目运行目录下的文件夹，确保存在如下文件夹(已有目录则跳过，不存在则创建对应的文件夹)
-     * /Plugins: 放各种 插件(jar包)，jar包里是各种Dispatcher和Provider的具体实现
+     * /Plugins: 各种插件的安装目录，插件的数据放在具体的插件目录中
      * /Logs: 存放本地日志
      * /Data: 存放各种Dispatcher和Provider的备份数据(records，注册表和各种备份数据)
      * /Events: 存放各种处理过的Event记录
