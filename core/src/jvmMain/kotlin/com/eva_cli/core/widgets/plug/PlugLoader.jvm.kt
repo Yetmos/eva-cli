@@ -41,7 +41,8 @@ internal actual fun loadLocalPlugin(id: String, version: String): LoadedPlugin {
     val runtimeDirectory = Path.of(FileUtils.rootPath()).toAbsolutePath().normalize()
     val pluginsDirectory = runtimeDirectory.resolve(Configure.PLUGINS_DIR)
     val pluginDirectory = pluginsDirectory.resolve(id)
-    val versionDirectory = pluginDirectory.resolve(version)
+    val versionsDirectory = pluginDirectory.resolve(Configure.PLUGIN_VERSIONS_DIR)
+    val versionDirectory = versionsDirectory.resolve(version)
 
     synchronized(registryLock) {
         check(id !in changingPlugins) { "插件正在加载或释放：$id" }
@@ -57,7 +58,7 @@ internal actual fun loadLocalPlugin(id: String, version: String): LoadedPlugin {
     var loader: PluginClassLoader? = null
     var context: JvmWidgetContext? = null
     try {
-        for (directory in listOf(runtimeDirectory, pluginsDirectory, pluginDirectory, versionDirectory)) {
+        for (directory in listOf(runtimeDirectory, pluginsDirectory, pluginDirectory, versionsDirectory, versionDirectory)) {
             check(Files.isDirectory(directory, NOFOLLOW_LINKS)) {
                 "插件安装路径不存在或不是普通目录：$directory"
             }
@@ -94,7 +95,13 @@ internal actual fun loadLocalPlugin(id: String, version: String): LoadedPlugin {
         val entry = entryClass.asSubclass(PluginEntry::class.java).getConstructor().newInstance()
         val providers = entry.providers.toList()
         val dispatchers = entry.dispatchers.toList()
-        val pluginContext = JvmWidgetContext(id, runtimeDirectory, versionDirectory, manifest.resources, HostPluginPermissions)
+        val pluginContext = JvmWidgetContext(
+            pluginId = id,
+            runtimeDirectory = runtimeDirectory,
+            pluginDirectory = versionDirectory,
+            resourcesPath = manifest.resources,
+            permissions = HostPluginPermissions,
+        )
         context = pluginContext
         for (widget in providers + dispatchers) widget.attach(pluginContext)
         val plugin = LoadedPlugin(

@@ -58,6 +58,9 @@ internal actual fun backupLocalPlugins() {
                 addDirectory(SNAPSHOT_PLUGINS)
                 for (plugin in installed) {
                     addDirectory("$SNAPSHOT_PLUGINS${plugin.manifest.id}/")
+                    addDirectory(
+                        "$SNAPSHOT_PLUGINS${plugin.manifest.id}/${Configure.PLUGIN_VERSIONS_DIR}/",
+                    )
                     val directory = Path.of(plugin.directory)
                     Files.walk(directory).use { paths ->
                         paths.sorted().forEach { path ->
@@ -116,32 +119,102 @@ internal actual fun restoreLocalPlugins() {
         check(Files.isRegularFile(snapshot, NOFOLLOW_LINKS)) { "插件快照不存在或不是普通文件：$snapshot" }
         val staging = Files.createTempDirectory(root, ".eva-restore-")
         val previous = staging.resolve("previous")
-        var previousMoved = false
-        var committed = false
+        val movedExisting = mutableListOf<Pair<Path, Path>>()
+        val movedRestored = mutableListOf<Path>()
+        val removedEmptyPluginDirectories = mutableListOf<Path>()
+        var rollbackFailed = false
         try {
             stageSnapshot(snapshot, staging)
             requireDirectoryOrAbsent(pluginsDirectory)
-            if (Files.exists(pluginsDirectory, NOFOLLOW_LINKS)) {
-                moveIntoPlace(pluginsDirectory, previous)
-                previousMoved = true
+            if (Files.notExists(pluginsDirectory, NOFOLLOW_LINKS)) {
+                Files.createDirectories(pluginsDirectory)
             }
             try {
-                moveIntoPlace(staging.resolve(Configure.PLUGINS_DIR), pluginsDirectory)
-                committed = true
+                // Keep each plugin's Data/ and Cache/ directories in place. Only the
+                // versioned installation subtree participates in a plugin snapshot.
+                Files.newDirectoryStream(pluginsDirectory).use { stream ->
+                    stream.toList().sorted().forEach { pluginDirectory ->
+                        check(Files.isDirectory(pluginDirectory, NOFOLLOW_LINKS)) {
+                            "插件目录包含非普通目录：$pluginDirectory"
+                        }
+                        val versions = pluginDirectory.resolve(Configure.PLUGIN_VERSIONS_DIR)
+                        if (Files.notExists(versions, NOFOLLOW_LINKS)) return@forEach
+                        check(Files.isDirectory(versions, NOFOLLOW_LINKS)) {
+                            "插件版本目录不是普通目录：$versions"
+                        }
+                        val previousVersions = previous.resolve(Configure.PLUGINS_DIR)
+                            .resolve(pluginDirectory.fileName.toString())
+                            .resolve(Configure.PLUGIN_VERSIONS_DIR)
+                        Files.createDirectories(previousVersions.parent)
+                        moveIntoPlace(versions, previousVersions)
+                        movedExisting.add(versions to previousVersions)
+                    }
+                }
+
+                val stagedPlugins = staging.resolve(Configure.PLUGINS_DIR)
+                Files.newDirectoryStream(stagedPlugins).use { stream ->
+                    stream.toList().forEach { stagedPlugin ->
+                        check(Files.isDirectory(stagedPlugin, NOFOLLOW_LINKS)) {
+                            "插件快照包含非普通目录：$stagedPlugin"
+                        }
+                        val id = stagedPlugin.fileName.toString()
+                        val stagedVersions = stagedPlugin.resolve(Configure.PLUGIN_VERSIONS_DIR)
+                        check(Files.isDirectory(stagedVersions, NOFOLLOW_LINKS)) {
+                            "插件快照缺少版本目录：$id"
+                        }
+                        val targetPlugin = pluginsDirectory.resolve(id)
+                        if (Files.notExists(targetPlugin, NOFOLLOW_LINKS)) {
+                            Files.createDirectory(targetPlugin)
+                        } else {
+                            check(Files.isDirectory(targetPlugin, NOFOLLOW_LINKS)) {
+                                "插件目录不是普通目录：$targetPlugin"
+                            }
+                        }
+                        val targetVersions = targetPlugin.resolve(Configure.PLUGIN_VERSIONS_DIR)
+                        moveIntoPlace(stagedVersions, targetVersions)
+                        movedRestored.add(targetVersions)
+                    }
+                }
+
+                // Do not leave stale ID directories behind after their versions were
+                // removed. A directory containing Data/ or Cache is retained.
+                Files.newDirectoryStream(pluginsDirectory).use { stream ->
+                    stream.toList().forEach { pluginDirectory ->
+                        if (Files.newDirectoryStream(pluginDirectory).use { !it.iterator().hasNext() }) {
+                            Files.delete(pluginDirectory)
+                            removedEmptyPluginDirectories.add(pluginDirectory)
+                        }
+                    }
+                }
             } catch (error: Exception) {
-                if (previousMoved) {
-                    try {
-                        moveIntoPlace(previous, pluginsDirectory)
-                        previousMoved = false
-                    } catch (rollbackError: Exception) {
-                        error.addSuppressed(IllegalStateException("回滚失败，原插件保留在：$previous", rollbackError))
+                movedRestored.asReversed().forEach { restored ->
+                    runCatching { deleteRecursively(restored) }
+                        .onFailure { rollbackError ->
+                            rollbackFailed = true
+                            error.addSuppressed(rollbackError)
+                        }
+                }
+                removedEmptyPluginDirectories.forEach { directory ->
+                    runCatching { Files.createDirectories(directory) }
+                        .onFailure { rollbackError ->
+                            rollbackFailed = true
+                            error.addSuppressed(rollbackError)
+                        }
+                }
+                movedExisting.asReversed().forEach { (original, saved) ->
+                    runCatching {
+                        Files.createDirectories(original.parent)
+                        moveIntoPlace(saved, original)
+                    }.onFailure { rollbackError ->
+                        rollbackFailed = true
+                        error.addSuppressed(IllegalStateException("回滚失败，原插件保留在：$saved", rollbackError))
                     }
                 }
                 throw error
             }
         } finally {
-            // 回滚失败时保留原安装目录；提交成功后的临时目录清理不改变恢复结果。
-            if (!previousMoved || committed) runCatching { deleteRecursively(staging) }
+            // 提交成功或回滚完成后，清理快照 staging 目录；回滚失败时保留现场。
+            if (!rollbackFailed) runCatching { deleteRecursively(staging) }
         }
     } catch (error: Exception) {
         throw IllegalStateException("恢复插件失败", error)
@@ -183,7 +256,10 @@ private fun stageSnapshot(archive: Path, destination: Path) {
         }
     }
     for (plugin in index.plugins) {
-        val directory = destination.resolve(Configure.PLUGINS_DIR).resolve(plugin.id).resolve(plugin.version)
+        val directory = destination.resolve(Configure.PLUGINS_DIR)
+            .resolve(plugin.id)
+            .resolve(Configure.PLUGIN_VERSIONS_DIR)
+            .resolve(plugin.version)
         val manifest = readManifest(directory)
         check(manifest.id == plugin.id && manifest.version == plugin.version) { "插件快照清单与目录不匹配" }
         validateManifest(manifest, directory)
@@ -197,7 +273,10 @@ private fun validateSnapshotIndex(index: PluginSnapshot) {
     val versionDirectories = index.plugins.map { plugin ->
         check(isSafeInstallSegment(plugin.id) && isSafeInstallSegment(plugin.version)) { "插件快照包含无效插件目录" }
         pluginDirectories.add("$SNAPSHOT_PLUGINS${plugin.id}/")
-        "$SNAPSHOT_PLUGINS${plugin.id}/${plugin.version}/"
+        pluginDirectories.add(
+            "$SNAPSHOT_PLUGINS${plugin.id}/${Configure.PLUGIN_VERSIONS_DIR}/",
+        )
+        "$SNAPSHOT_PLUGINS${plugin.id}/${Configure.PLUGIN_VERSIONS_DIR}/${plugin.version}/"
     }
     val paths = mutableSetOf<String>()
     for (entry in index.entries) {

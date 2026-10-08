@@ -244,9 +244,27 @@ class ChatProvider : PluginProvider() {
 | 文件 | `files.read/write/delete/list` | 使用相对路径；DATA、CACHE 按插件分开，RESOURCES 只读。 |
 | 权限 | `permissions.check/request` | 由宿主桥接平台权限；返回 GRANTED、DENIED 或 UNAVAILABLE。 |
 
-偏好、数据库和普通文件不放在插件安装版本目录中，升级或卸载加载器后保留。
+每个插件的安装文件和运行数据集中在 `Plugins/<id>/`，布局如下：
+
+```text
+Plugins/<id>/
+├── versions/<version>/           # 该版本的完整安装包与只读资源
+├── Data/
+│   ├── preferences.preferences_pb
+│   ├── databases/<name>
+│   └── files/
+└── Cache/
+```
+
+偏好、数据库和普通文件由插件 ID 隔离，在不同版本间共享，升级或卸载加载器后保留。
+`files` 的 `DATA` 对应 `Data/files/`，`CACHE` 对应 `Cache/`；目录在使用时按需创建。
 `RESOURCES` 指向清单声明的公共资源目录；未声明时不能读取资源。
 文件接口拒绝越界路径和符号链接，但同进程插件仍能自行调用 JVM API，因此 Context 不是安全沙盒。
+
+旧布局不会自动迁移。升级宿主前先停止插件并备份，再将 `Plugins/<id>/<version>/`
+移至 `Plugins/<id>/versions/<version>/`，将运行根目录下的 `Data/<id>/` 和 `Cache/<id>/`
+分别移至 `Plugins/<id>/Data/` 和 `Plugins/<id>/Cache/`；目标存在时应先处理冲突，避免覆盖数据。
+迁移后重新生成安装快照，旧布局的快照不适用于新的安装目录。
 
 数据库 factory 返回实现 `PluginDatabase` 的插件对象，可将自身的 `RoomDatabase` 包装其中，
 由其 `close()` 关闭数据库。Room schema、DAO、生成代码、驱动和迁移属于插件，由插件构建和打包；
@@ -274,7 +292,7 @@ JVM 宿主可通过 `PlugManager.installPlugin(PluginSource.File(uri, sha256))` 
 安装器会先计算可选的 SHA-256 摘要，再将 ZIP 解压到 `Plugins` 目录下的临时目录，读取并校验
 根目录 `plugin.json`，确认 `formatVersion` 和 `apiVersion` 均为当前版本、声明了 JVM 产物，
 并检查 `minJavaVersion`、`artifact` 文件和 `entryClass` 类文件存在。校验成功后，目录会原子移动到
-`Plugins/<id>/<version>`；相同清单已经安装时操作幂等，目标目录存在但清单不一致会失败。
+`Plugins/<id>/versions/<version>`；相同清单已经安装时操作幂等，目标目录存在但清单不一致会失败。
 ZIP 中的绝对路径、父目录跳转和重复路径会被拒绝，失败时临时目录会清理。
 
 URL 和 Git 来源当前会明确抛出 `UnsupportedOperationException`。Android 和 iOS 保留相同 API，
@@ -293,7 +311,7 @@ for (plugin in installed) {
 
 返回类型为 `List<InstalledPluginInfo>`，每项包含清单 `manifest` 和安装目录的绝对路径
 `directory`。每个版本单独列出，按插件 ID、版本字符串排序（不是语义版本优先级）。
-每次读取都扫描 `Plugins/<id>/<version>`，无需再次安装或保留原 `.eva`；重启后仍可发现
+每次读取都扫描 `Plugins/<id>/versions/<version>`，无需再次安装或保留原 `.eva`；重启后仍可发现
 已有安装，目录删除后下一次查询会反映变化。查询为同步文件 I/O，应在后台线程调用。
 
 查询复用安装器的清单与 JVM 产物校验，跳过 `.eva-install-*` 临时目录、不完整、损坏、
@@ -417,12 +435,12 @@ JVM 宿主通过插件 ID 和版本卸载指定安装：
 val removed = PlugManager.uninstallPlugin("com.example.echo", "1.0.0")
 ```
 
-删除 `Plugins/<id>/<version>` 及其内容后返回 `true`；目标不存在时返回 `false`，不创建目录。
-其他版本和插件保持不变，空的 ID 父目录和 `Plugins` 根目录保留。下一次读取 `installedList`
+删除 `Plugins/<id>/versions/<version>` 及其内容后返回 `true`；目标不存在时返回 `false`，不创建目录。
+其他版本、插件及该插件的 `Data`、`Cache` 保留，空的 `versions`、ID 父目录和 `Plugins` 根目录也保留。下一次读取 `installedList`
 会反映卸载结果。卸载不依赖清单或 JAR 校验，因此也可清理损坏、不完整或不兼容的安装。
 
 ID 和版本必须是安全的单个目录名，非法参数抛出 `IllegalArgumentException`。
-根目录、ID 目录或版本目录是符号链接或普通文件时拒绝卸载；目标目录内部的符号链接只删除
+根目录、ID 目录、`versions` 或版本目录是符号链接或普通文件时拒绝卸载；目标目录内部的符号链接只删除
 链接本身。目录结构无效或文件删除失败时抛出 `IllegalStateException`；删除失败可能留下部分
 文件，可在解决文件占用或权限问题后重试。此操作同步访问磁盘，应在后台线程调用。
 Android/iOS 当前抛出 `UnsupportedOperationException`。
@@ -439,11 +457,12 @@ PlugManager.restore()
 `backup()` 将 `installedList` 中所有有效插件版本及其完整目录（JAR、源码、资源和空目录）
 保存到运行目录下的 `Backup/plugins.zip`。每次成功备份更新这份快照，失败时保留上一次快照。
 快照包含格式版本、插件列表、文件目录清单及文件 SHA-256；没有已安装插件时也会生成有效的空快照。
-无效安装和安装临时目录不会进入快照；插件目录内的符号链接或特殊文件会使备份失败。
+无效安装、安装临时目录以及各插件的 `Data`、`Cache` 不会进入快照；安装版本目录内的符号链接或特殊文件会使备份失败。
 
-`restore()` 先在临时目录中校验快照清单、文件摘要及 JVM 插件产物，再替换整个 `Plugins` 目录。
-因此备份后新增的插件会被移除，同版本修改过或删除的文件会恢复；空快照会清空插件安装目录。
-快照保留，可重复恢复。`Data`、`Events`、`Logs` 及已加载的插件实例不受影响；恢复后应重新加载插件。
+`restore()` 先在临时目录中校验快照清单、文件摘要及 JVM 插件产物，再替换各插件的 `versions` 目录。
+因此备份后新增的安装版本会被移除，同版本修改过或删除的安装文件会恢复；空快照会清除所有安装版本。
+各插件的 `Data`、`Cache` 保留，即使该插件不在快照中也不会删除其运行数据。
+快照保留，可重复恢复。根目录的宿主数据、`Events`、`Logs` 及已加载的插件实例不受影响；恢复后应重新加载插件。
 
 缺失、损坏或不兼容的快照会抛出 `IllegalStateException`，校验失败不会修改当前插件；
 目录替换失败时会尝试回滚。备份和恢复不支持与安装、卸载或插件文件写入并发执行，

@@ -112,8 +112,8 @@ class JvmWidgetContextTest {
                 val outside = Files.createDirectories(root.resolve("outside"))
                 Files.writeString(outside.resolve("secret"), "private")
                 for ((area, directory) in listOf(
-                    PluginFileArea.DATA to root.resolve("Data/test/files"),
-                    PluginFileArea.CACHE to root.resolve("Cache/test"),
+                    PluginFileArea.DATA to root.resolve("Plugins/test/Data/files"),
+                    PluginFileArea.CACHE to root.resolve("Plugins/test/Cache"),
                     PluginFileArea.RESOURCES to plugin.resolve("resources"),
                 )) {
                     Files.createDirectories(directory)
@@ -137,8 +137,8 @@ class JvmWidgetContextTest {
     @Test
     fun rejectsSymlinkedPreferenceAndDatabaseDirectories() = withRuntime { root, plugin ->
         val outside = Files.createDirectory(root.resolve("outside"))
-        Files.createDirectories(root.resolve("Data"))
-        Files.createSymbolicLink(root.resolve("Data/test"), outside)
+        Files.createDirectories(root.resolve("Plugins/test"))
+        Files.createSymbolicLink(root.resolve("Plugins/test/Data"), outside)
         val host = context(root, plugin)
         try {
             runBlocking {
@@ -177,7 +177,7 @@ class JvmWidgetContextTest {
         host.databases.open("second.db", secondFactory)
         assertFailsWith<IllegalArgumentException> { host.databases.open("first.db", secondFactory) }
         assertFailsWith<IllegalArgumentException> { host.databases.open("../outside", firstFactory) }
-        assertEquals(root.toRealPath().resolve("Data/test/databases/first.db").toString(), paths.first())
+        assertEquals(root.toRealPath().resolve("Plugins/test/Data/databases/first.db").toString(), paths.first())
         assertNotEquals(paths.first(), paths.last())
         assertSame(failure, assertFailsWith<IllegalStateException> { host.close() })
         assertEquals(listOf("first", "second"), closes)

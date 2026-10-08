@@ -7,6 +7,7 @@ import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
 import com.eva_cli.core.widgets.provider.Provider
 import com.eva_cli.core.widgets.context.PermissionResult
+import com.eva_cli.core.widgets.context.PluginFileArea
 import com.eva_cli.core.widgets.context.PluginDatabase
 import com.eva_cli.core.widgets.context.PluginDatabaseFactory
 import com.eva_cli.core.widgets.context.PluginPermissions
@@ -129,6 +130,37 @@ class PlugManagerLoadingJvmTest {
             assertEquals("dark", reloaded.preferences.get("theme"))
             assertEquals("saved", reloaded.files.read("nested/note.txt").decodeToString())
         }
+    }
+
+    @Test
+    fun switchingVersionsAndUninstallingThemPreservesPluginStorage() = withRuntimeRoot { root ->
+        val first = writePlugin(root)
+        val second = writePlugin(root, version = "2.0.0")
+        val original = PlugManager.loadPlugin(ID, VERSION).context
+        runBlocking {
+            original.preferences.put("theme", "dark")
+            original.files.write("note.txt", "saved".encodeToByteArray())
+            original.files.write("index.txt", "cached".encodeToByteArray(), PluginFileArea.CACHE)
+        }
+        PlugManager.unloadPlugin(ID)
+        assertTrue(PlugManager.uninstallPlugin(ID, VERSION))
+
+        val upgraded = PlugManager.loadPlugin(ID, "2.0.0").context
+        runBlocking {
+            assertEquals("dark", upgraded.preferences.get("theme"))
+            assertEquals("saved", upgraded.files.read("note.txt").decodeToString())
+            assertEquals("cached", upgraded.files.read("index.txt", PluginFileArea.CACHE).decodeToString())
+        }
+        PlugManager.unloadPlugin(ID)
+        assertTrue(PlugManager.uninstallPlugin(ID, "2.0.0"))
+
+        assertFalse(Files.exists(first))
+        assertFalse(Files.exists(second))
+        assertTrue(Files.isRegularFile(root.resolve("Plugins/$ID/Data/preferences.preferences_pb")))
+        assertEquals("saved", Files.readString(root.resolve("Plugins/$ID/Data/files/note.txt")))
+        assertEquals("cached", Files.readString(root.resolve("Plugins/$ID/Cache/index.txt")))
+        assertFalse(Files.exists(root.resolve("Data/$ID")))
+        assertFalse(Files.exists(root.resolve("Cache/$ID")))
     }
 
     @Test
@@ -749,7 +781,7 @@ class PlugManagerLoadingJvmTest {
         assertSame(loaded, PlugManager.loadedList.single())
 
         assertTrue(PlugManager.unloadPlugin(ID))
-        assertEquals(otherRoot.resolve("Plugins/$ID/$VERSION").toString(), PlugManager.loadPlugin(ID, VERSION).directory)
+        assertEquals(otherRoot.resolve("Plugins/$ID/versions/$VERSION").toString(), PlugManager.loadPlugin(ID, VERSION).directory)
     }
 
     @Test
@@ -898,11 +930,12 @@ class PlugManagerLoadingJvmTest {
         for (relative in listOf(
             "Plugins",
             "Plugins/$ID",
-            "Plugins/$ID/$VERSION",
-            "Plugins/$ID/$VERSION/plugin.json",
-            "Plugins/$ID/$VERSION/plugin.jar",
-            "Plugins/$ID/$VERSION/dependencies",
-            "Plugins/$ID/$VERSION/dependencies/private.jar",
+            "Plugins/$ID/versions",
+            "Plugins/$ID/versions/$VERSION",
+            "Plugins/$ID/versions/$VERSION/plugin.json",
+            "Plugins/$ID/versions/$VERSION/plugin.jar",
+            "Plugins/$ID/versions/$VERSION/dependencies",
+            "Plugins/$ID/versions/$VERSION/dependencies/private.jar",
         )) {
             withRuntimeRoot { root ->
                 writePlugin(root)
@@ -973,7 +1006,7 @@ class PlugManagerLoadingJvmTest {
         version: String = VERSION,
         entry: Class<*> = LoadingEntry::class.java,
     ): Path {
-        val directory = root.resolve("Plugins/$id/$version")
+        val directory = root.resolve("Plugins/$id/versions/$version")
         Files.createDirectories(directory.resolve("dependencies"))
         writeJar(directory.resolve("plugin.jar"), mainClasses(entry))
         writeJar(directory.resolve("dependencies/private.jar"), listOf(PrivateDependency::class.java))

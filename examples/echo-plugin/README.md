@@ -174,6 +174,9 @@ context.files.write("preview.json", saved, PluginFileArea.CACHE)
 
 偏好值为字符串，结构化值由插件自行序列化；`preferences.values` 提供变更 `Flow`。
 文件路径相对于 `DATA`、`CACHE` 或 `RESOURCES`，资源目录只读；不要传绝对路径或 `..`。
+JVM 宿主将普通文件保存在 `Plugins/<id>/Data/files/`，缓存保存在 `Plugins/<id>/Cache/`，
+偏好和数据库分别保存在同一插件的 `Data/preferences.preferences_pb` 和 `Data/databases/`。
+这些目录与 `versions/<version>/` 同级，升级或卸载某个安装版本后继续保留。
 未声明公共资源的插件不能读取 `RESOURCES`。持久数据与安装版本分开保存，卸载加载器不会删除数据。
 
 Room 数据库由插件提供 schema、DAO、生成代码和迁移。宿主管理数据库路径、实例复用与关闭，

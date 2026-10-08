@@ -132,7 +132,7 @@ object PlugManager {
 
     /**
      * 删除指定插件版本的安装目录；删除成功返回 true，未安装返回 false。
-     * 无需清单有效，保留其他版本及空的插件 ID 目录；不处理已加载的插件实例。
+     * 无需清单有效，保留其他版本、Data/Cache 及空的插件 ID 目录；不处理已加载的插件实例。
      * id/version 必须是安全的单个目录名，否则抛出 [IllegalArgumentException]。
      * 安装路径不是普通目录或删除失败时抛出 [IllegalStateException]。
      * 此操作同步访问文件，应在后台线程调用；Android/iOS 当前不支持卸载。
@@ -141,13 +141,14 @@ object PlugManager {
 
     /**
      * 将所有有效的已安装插件版本备份到 Backup/plugins.zip，成功后替换上一次快照。
-     * 包含插件目录中的资源、源码和空目录；失败时抛出 [IllegalStateException]。
+     * 包含安装版本目录中的资源、源码和空目录，不包含 Data/Cache；失败时抛出 [IllegalStateException]。
      * 此操作同步访问文件，应在后台线程调用；Android/iOS 当前不支持备份。
      */
     fun backup(): Unit = backupLocalPlugins()
 
     /**
      * 校验 Backup/plugins.zip 后恢复完整安装快照，移除备份后新增的插件版本。
+     * 仅替换各插件的 versions 目录，保留 Data/Cache，包括快照之外插件的运行数据。
      * 快照不存在、损坏或恢复失败时抛出 [IllegalStateException]；不处理已加载的实例。
      * 此操作同步访问文件，应在后台线程调用；Android/iOS 当前不支持恢复。
      */

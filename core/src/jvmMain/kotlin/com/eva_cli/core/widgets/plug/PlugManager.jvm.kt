@@ -28,8 +28,9 @@ internal actual fun uninstallLocalPlugin(id: String, version: String): Boolean {
             .toAbsolutePath()
             .normalize()
         val pluginDirectory = pluginsDirectory.resolve(id)
-        val versionDirectory = pluginDirectory.resolve(version)
-        for (directory in listOf(pluginsDirectory, pluginDirectory, versionDirectory)) {
+        val versionsDirectory = pluginDirectory.resolve(Configure.PLUGIN_VERSIONS_DIR)
+        val versionDirectory = versionsDirectory.resolve(version)
+        for (directory in listOf(pluginsDirectory, pluginDirectory, versionsDirectory, versionDirectory)) {
             if (Files.notExists(directory, NOFOLLOW_LINKS)) return false
             check(Files.isDirectory(directory, NOFOLLOW_LINKS)) {
                 "插件安装路径不是普通目录：$directory"
@@ -63,7 +64,9 @@ internal actual fun listInstalledPlugins(): List<InstalledPluginInfo> {
                     !Files.isDirectory(pluginDirectory, NOFOLLOW_LINKS)
                 ) continue
 
-                Files.newDirectoryStream(pluginDirectory).use { versionDirectories ->
+                val versionsDirectory = pluginDirectory.resolve(Configure.PLUGIN_VERSIONS_DIR)
+                if (!Files.isDirectory(versionsDirectory, NOFOLLOW_LINKS)) continue
+                Files.newDirectoryStream(versionsDirectory).use { versionDirectories ->
                     for (versionDirectory in versionDirectories) {
                         if (!Files.isDirectory(versionDirectory, NOFOLLOW_LINKS) ||
                             !Files.isRegularFile(versionDirectory.resolve("plugin.json"), NOFOLLOW_LINKS)
@@ -109,7 +112,9 @@ internal actual fun installLocalPlugin(source: PluginSource.File): InstalledPlug
         val manifest = readManifest(stagingDirectory)
         validateManifest(manifest, stagingDirectory)
 
-        val versionDirectory = pluginsDirectory.resolve(manifest.id).resolve(manifest.version)
+        val versionDirectory = pluginsDirectory.resolve(manifest.id)
+            .resolve(Configure.PLUGIN_VERSIONS_DIR)
+            .resolve(manifest.version)
         val existing = existingInstallation(versionDirectory, manifest)
         if (existing == true) {
             return InstalledPlugin(manifest, versionDirectory.toString(), alreadyInstalled = true, sha256 = digest)

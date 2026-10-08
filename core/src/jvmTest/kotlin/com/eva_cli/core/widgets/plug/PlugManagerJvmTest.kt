@@ -27,7 +27,7 @@ class PlugManagerJvmTest {
             }
 
             assertTrue(failure.message.orEmpty().contains("apiVersion=$apiVersion"))
-            assertFalse(Files.exists(root.resolve("Plugins/com.example.test/1.0.0")))
+            assertFalse(Files.exists(root.resolve("Plugins/com.example.test/versions/1.0.0")))
             assertTrue(PlugManager.installedList.isEmpty())
         }
     }
@@ -51,7 +51,7 @@ class PlugManagerJvmTest {
         assertEquals(expected, directoryContents(root.resolve("Plugins")))
 
         PlugManager.uninstallPlugin("com.example.test", "1.0.0")
-        Files.writeString(root.resolve("Plugins/com.example.test/2.0.0/prebuilt/jvm/plugin.jar"), "broken")
+        Files.writeString(root.resolve("Plugins/com.example.test/versions/2.0.0/prebuilt/jvm/plugin.jar"), "broken")
         writeInstalledFixture(root, "com.example.new")
 
         PlugManager.restore()
@@ -61,6 +61,84 @@ class PlugManagerJvmTest {
 
         PlugManager.restore()
         assertEquals(expected, directoryContents(root.resolve("Plugins")))
+    }
+
+    @Test
+    fun restoreReplacesOnlyVersionedInstallationsAndPreservesPluginDataAndCache() = withRuntimeRoot { root ->
+        val saved = writeInstalledFixture(root, "com.example.saved")
+        val savedRoot = root.resolve("Plugins/com.example.saved")
+        Files.createDirectories(savedRoot.resolve("Data/files"))
+        Files.writeString(savedRoot.resolve("Data/files/state.txt"), "keep data")
+        Files.createDirectories(savedRoot.resolve("Cache"))
+        Files.writeString(savedRoot.resolve("Cache/index.txt"), "keep cache")
+        PlugManager.backup()
+
+        ZipFile(root.resolve("Backup/plugins.zip").toFile()).use { zip ->
+            assertTrue(zip.entries().asSequence().none { it.name.contains("/Data/") || it.name.contains("/Cache/") })
+        }
+
+        Files.writeString(saved.resolve("plugin.json"), "changed")
+        val extra = writeInstalledFixture(root, "com.example.extra")
+        val extraData = root.resolve("Plugins/com.example.extra/Data/files")
+        Files.createDirectories(extraData)
+        Files.writeString(extraData.resolve("state.txt"), "extra data")
+
+        PlugManager.restore()
+
+        assertEquals("keep data", Files.readString(savedRoot.resolve("Data/files/state.txt")))
+        assertEquals("keep cache", Files.readString(savedRoot.resolve("Cache/index.txt")))
+        assertEquals("com.example.saved", PlugManager.installedList.single().manifest.id)
+        assertFalse(Files.exists(extra))
+        assertEquals("extra data", Files.readString(extraData.resolve("state.txt")))
+    }
+
+    @Test
+    fun emptySnapshotRemovesVersionsButPreservesDataAndCache() = withRuntimeRoot { root ->
+        PlugManager.backup()
+        val installed = writeInstalledFixture(root, "com.example.new")
+        val plugin = installed.parent.parent
+        for (area in listOf("Data", "Cache")) {
+            Files.createDirectories(plugin.resolve(area))
+            Files.writeString(plugin.resolve("$area/keep.txt"), area)
+        }
+
+        PlugManager.restore()
+
+        assertTrue(PlugManager.installedList.isEmpty())
+        assertFalse(Files.exists(installed.parent))
+        for (area in listOf("Data", "Cache")) {
+            assertEquals(area, Files.readString(plugin.resolve("$area/keep.txt")))
+        }
+    }
+
+    @Test
+    fun restoreRollsBackEarlierVersionsWhenALaterVersionsDirectoryIsInvalid() {
+        for (linked in listOf(false, true)) {
+            if (linked && System.getProperty("os.name").startsWith("Windows")) continue
+            withRuntimeRoot { root ->
+                val installed = writeInstalledFixture(root, "com.example.a")
+                PlugManager.backup()
+                Files.writeString(installed.resolve("README.md"), "keep current installation")
+                val plugin = installed.parent.parent
+                for (area in listOf("Data", "Cache")) {
+                    Files.createDirectories(plugin.resolve(area))
+                    Files.writeString(plugin.resolve("$area/keep.txt"), area)
+                }
+                val expected = directoryContents(plugin)
+                val blocked = Files.createDirectories(root.resolve("Plugins/com.example.z")).resolve("versions")
+                val outside = Files.createDirectory(root.resolve("outside"))
+                Files.writeString(outside.resolve("keep.txt"), "outside data")
+                if (linked) Files.createSymbolicLink(blocked, outside)
+                else Files.writeString(blocked, "keep collision")
+
+                assertFailsWith<IllegalStateException> { PlugManager.restore() }
+
+                assertEquals(expected, directoryContents(plugin))
+                assertEquals("outside data", Files.readString(outside.resolve("keep.txt")))
+                if (linked) assertTrue(Files.isSymbolicLink(blocked))
+                else assertEquals("keep collision", Files.readString(blocked))
+            }
+        }
     }
 
     @Test
@@ -288,13 +366,13 @@ class PlugManagerJvmTest {
             Files.readString(incompatible.resolve("plugin.json"))
                 .replace("\"apiVersion\": $CURRENT_PLUGIN_API_VERSION", "\"apiVersion\": 1"),
         )
-        val incomplete = Files.createDirectories(root.resolve("Plugins/com.example.incomplete/1.0.0/nested"))
+        val incomplete = Files.createDirectories(root.resolve("Plugins/com.example.incomplete/versions/1.0.0/nested"))
         Files.writeString(incomplete.resolve("partial.txt"), "unfinished install")
         assertTrue(PlugManager.installedList.isEmpty())
 
         for (id in listOf("com.example.broken", "com.example.incompatible", "com.example.incomplete")) {
             assertTrue(PlugManager.uninstallPlugin(id, "1.0.0"))
-            assertFalse(Files.exists(root.resolve("Plugins/$id/1.0.0")))
+            assertFalse(Files.exists(root.resolve("Plugins/$id/versions/1.0.0")))
             assertTrue(Files.isDirectory(root.resolve("Plugins/$id")), "保留空的插件 ID 目录")
             assertFalse(PlugManager.uninstallPlugin(id, "1.0.0"))
         }
@@ -326,7 +404,7 @@ class PlugManagerJvmTest {
 
     @Test
     fun refusesNonDirectoryUninstallPathsAtEveryInstallationLevel() {
-        for (relative in listOf("Plugins", "Plugins/com.example.test", "Plugins/com.example.test/1.0.0")) {
+        for (relative in listOf("Plugins", "Plugins/com.example.test", "Plugins/com.example.test/versions", "Plugins/com.example.test/versions/1.0.0")) {
             withRuntimeRoot { root ->
                 val path = root.resolve(relative)
                 Files.createDirectories(path.parent)
@@ -343,7 +421,7 @@ class PlugManagerJvmTest {
     @Test
     fun refusesLinkedAndDanglingUninstallPathsAtEveryInstallationLevel() {
         if (System.getProperty("os.name").startsWith("Windows")) return
-        for (relative in listOf("Plugins", "Plugins/com.example.test", "Plugins/com.example.test/1.0.0")) {
+        for (relative in listOf("Plugins", "Plugins/com.example.test", "Plugins/com.example.test/versions", "Plugins/com.example.test/versions/1.0.0")) {
             for (dangling in listOf(false, true)) {
                 withRuntimeRoot { root ->
                     val outside = root.resolve("outside")
@@ -410,7 +488,7 @@ class PlugManagerJvmTest {
             installed.map { "${it.manifest.id}:${it.manifest.version}" },
         )
         installed.forEach {
-            assertEquals(root.resolve("Plugins/${it.manifest.id}/${it.manifest.version}").toString(), it.directory)
+            assertEquals(root.resolve("Plugins/${it.manifest.id}/versions/${it.manifest.version}").toString(), it.directory)
         }
     }
 
@@ -449,7 +527,7 @@ class PlugManagerJvmTest {
             Files.readString(incompatible.resolve("plugin.json"))
                 .replace("\"apiVersion\": $CURRENT_PLUGIN_API_VERSION", "\"apiVersion\": 1"),
         )
-        Files.createDirectories(root.resolve("Plugins/com.example.incomplete/1.0.0"))
+        Files.createDirectories(root.resolve("Plugins/com.example.incomplete/versions/1.0.0"))
         Files.writeString(root.resolve("Plugins/notes.txt"), "not an installation")
 
         assertEquals(listOf("com.example.valid"), PlugManager.installedList.map { it.manifest.id })
@@ -463,10 +541,13 @@ class PlugManagerJvmTest {
         val outside = root.resolve("outside")
         val linkedId = writeInstalledFixture(outside, "com.example.linkedId")
         val linkedVersion = writeInstalledFixture(outside, "com.example.linkedVersion")
+        val linkedVersions = writeInstalledFixture(outside, "com.example.linkedVersions")
         val linkedManifest = writeInstalledFixture(outside, "com.example.linkedManifest")
         val plugins = Files.createDirectories(root.resolve("Plugins"))
-        Files.createSymbolicLink(plugins.resolve("com.example.linkedId"), linkedId.parent)
-        val versionParent = Files.createDirectories(plugins.resolve("com.example.linkedVersion"))
+        Files.createSymbolicLink(plugins.resolve("com.example.linkedId"), linkedId.parent.parent)
+        val linkedVersionsParent = Files.createDirectory(plugins.resolve("com.example.linkedVersions"))
+        Files.createSymbolicLink(linkedVersionsParent.resolve("versions"), linkedVersions.parent)
+        val versionParent = Files.createDirectories(plugins.resolve("com.example.linkedVersion/versions"))
         Files.createSymbolicLink(versionParent.resolve("1.0.0"), linkedVersion)
         val manifestDirectory = writeInstalledFixture(root, "com.example.linkedManifest")
         Files.delete(manifestDirectory.resolve("plugin.json"))
@@ -490,7 +571,7 @@ class PlugManagerJvmTest {
         val first = PlugManager.installPlugin(PluginSource.File(archive.toString()))
         assertFalse(first.alreadyInstalled)
         assertTrue(first.sha256.matches(Regex("[0-9a-f]{64}")))
-        assertEquals(root.resolve("Plugins/com.example.test/1.0.0").toString(), first.directory)
+        assertEquals(root.resolve("Plugins/com.example.test/versions/1.0.0").toString(), first.directory)
         assertTrue(Path.of(first.directory).resolve("plugin.json").toFile().isFile)
 
         val second = PlugManager.installPlugin(PluginSource.File(archive.toString()))
@@ -522,7 +603,7 @@ class PlugManagerJvmTest {
             PlugManager.installPlugin(PluginSource.File(archive.toString()))
         }
         assertTrue(error.message.orEmpty().contains("formatVersion"))
-        assertFalse(Files.exists(root.resolve("Plugins/com.example.test/1.0.0")))
+        assertFalse(Files.exists(root.resolve("Plugins/com.example.test/versions/1.0.0")))
         assertTrue(PlugManager.installedList.isEmpty())
     }
 
@@ -550,7 +631,7 @@ class PlugManagerJvmTest {
             PlugManager.installPlugin(PluginSource.File(archive.toString()))
         }
         assertTrue(error.message.orEmpty().contains("minJavaVersion") || error.message.orEmpty().contains("Java"))
-        assertFalse(Files.exists(root.resolve("Plugins/com.example.test/1.0.0")))
+        assertFalse(Files.exists(root.resolve("Plugins/com.example.test/versions/1.0.0")))
     }
 
     @Test
@@ -558,7 +639,7 @@ class PlugManagerJvmTest {
         val first = createEva(root.resolve("first.eva"))
         PlugManager.installPlugin(PluginSource.File(first.toString()))
 
-        val installedManifest = root.resolve("Plugins/com.example.test/1.0.0/plugin.json")
+        val installedManifest = root.resolve("Plugins/com.example.test/versions/1.0.0/plugin.json")
         val changed = Files.readString(installedManifest).replace("Test Plugin", "Changed Plugin")
         Files.writeString(installedManifest, changed)
         val error = assertFailsWith<PluginInstallException> {
@@ -647,7 +728,7 @@ class PlugManagerJvmTest {
     private fun writeInstalledFixture(root: Path, id: String): Path {
         Files.createDirectories(root)
         val archive = createEva(root.resolve("fixture.eva"), id = id)
-        val directory = root.resolve("Plugins/$id/1.0.0")
+        val directory = root.resolve("Plugins/$id/versions/1.0.0")
         Files.createDirectories(directory.resolve("prebuilt/jvm"))
         ZipFile(archive.toFile()).use { zip ->
             for (name in listOf("plugin.json", "prebuilt/jvm/plugin.jar")) {

@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.eva_cli.core.runtime.Configure
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.request
@@ -145,9 +146,9 @@ internal class JvmWidgetContext(
             val previousMarker = activeScope.get()
             activeScope.set(true)
             try {
-                val path = safePath(runtimeRoot, "Data/$pluginId/databases/$name")
+                val path = safePath(dataStorageRoot(), "databases/$name")
                 Files.createDirectories(path.parent)
-                safePath(runtimeRoot, "Data/$pluginId/databases/$name")
+                safePath(dataStorageRoot(), "databases/$name")
                 // Plugin code can call other context services while constructing a database.
                 val database = factory.open(path.toString())
                 synchronized(lock) {
@@ -241,14 +242,14 @@ internal class JvmWidgetContext(
 
     private fun preferenceStore(): DataStore<Preferences> = synchronized(lock) {
         requireOpen()
-        val path = safePath(runtimeRoot, "Data/$pluginId/preferences.preferences_pb")
+        val path = safePath(dataStorageRoot(), "preferences.preferences_pb")
         store ?: PreferenceDataStoreFactory.create(scope = scope) { path.toFile() }.also { store = it }
     }
 
     private fun filePath(path: String, area: PluginFileArea, allowEmpty: Boolean = false): Path {
         val root = when (area) {
-            PluginFileArea.DATA -> safePath(runtimeRoot, "Data/$pluginId/files")
-            PluginFileArea.CACHE -> safePath(runtimeRoot, "Cache/$pluginId")
+            PluginFileArea.DATA -> safePath(dataStorageRoot(), "files")
+            PluginFileArea.CACHE -> cacheStorageRoot()
             PluginFileArea.RESOURCES -> checkNotNull(resourcesRoot) { "Plugin does not declare resources" }
         }
         if (area == PluginFileArea.RESOURCES) {
@@ -258,6 +259,10 @@ internal class JvmWidgetContext(
     }
 
     private fun requireOpen() = check(!closed) { "WidgetContext for $pluginId is closed" }
+
+    private fun dataStorageRoot(): Path = safePath(runtimeRoot, "${Configure.PLUGINS_DIR}/$pluginId/Data")
+
+    private fun cacheStorageRoot(): Path = safePath(runtimeRoot, "${Configure.PLUGINS_DIR}/$pluginId/Cache")
 
     private fun requireWritable(area: PluginFileArea) =
         require(area != PluginFileArea.RESOURCES) { "Plugin resources are read-only" }

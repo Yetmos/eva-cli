@@ -8,6 +8,8 @@ import com.eva_cli.core.utils.file.FileUtils
 object Configure {
 
     const val PLUGINS_DIR = "Plugins"
+    /** Directory below each plugin id containing versioned installation files. */
+    const val PLUGIN_VERSIONS_DIR = "versions"
     const val LOGS_DIR = "Logs"
     const val DATA_DIR = "Data"
     const val EVENTS_DIR = "Events"
