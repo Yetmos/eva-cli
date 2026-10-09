@@ -79,7 +79,7 @@ class PlugManagerLoadingJvmTest {
         writePlugin(root)
         val context = PlugManager.loadPlugin(ID, VERSION).context
         runBlocking { context.files.write("state.txt", "saved".encodeToByteArray()) }
-        PlugManager.backup()
+        PlugManager.backup(includeRuntimeData = false)
         val snapshot = root.resolve("Backup/plugins.zip")
         val previous = Files.readAllBytes(snapshot)
 

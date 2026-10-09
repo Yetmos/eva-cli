@@ -450,12 +450,12 @@ Android/iOS 当前抛出 `UnsupportedOperationException`。
 JVM 宿主通过以下方法保存和恢复插件安装快照：
 
 ```kotlin
-PlugManager.backup()
+PlugManager.backup(includeRuntimeData = false)
 PlugManager.backup(includeRuntimeData = true)
 PlugManager.restore()
 ```
 
-`backup()` 默认只将 `installedList` 中所有有效插件版本及其完整目录（JAR、源码、资源和空目录）
+`backup(includeRuntimeData = false)` 只将 `installedList` 中所有有效插件版本及其完整目录（JAR、源码、资源和空目录）
 保存到运行目录下的 `Backup/plugins.zip`，不包含运行数据。传入
 `includeRuntimeData = true` 时，同时备份已安装插件按 ID 共享的 `Data` 目录；`Cache` 始终排除。
 每次成功备份更新这份快照，失败时保留上一次快照。快照包含格式版本、插件列表、文件目录清单及文件 SHA-256；
@@ -465,7 +465,7 @@ PlugManager.restore()
 
 `restore()` 先在临时目录中校验快照清单、文件摘要及 JVM 插件产物，再替换各插件的 `versions` 目录。
 含运行数据的快照还会精确替换快照中插件的 `Data`：备份时没有 `Data` 表示恢复时清除该目录；
-快照外插件的 `Data` 和所有插件的 `Cache` 始终保留。没有运行数据的旧快照只替换 `versions`，保留当前运行数据。
+快照外插件的 `Data` 和所有插件的 `Cache` 始终保留。没有运行数据的快照只替换 `versions`，保留当前运行数据。
 因此备份后新增的安装版本会被移除，同版本修改过或删除的安装文件会恢复；空快照会清除所有安装版本。
 快照保留，可重复恢复。根目录的宿主数据、`Events`、`Logs` 及已加载的插件实例不受影响；恢复运行数据前相关插件必须先卸载，恢复后应重新加载插件。
 

@@ -140,16 +140,11 @@ object PlugManager {
     fun uninstallPlugin(id: String, version: String): Boolean = uninstallLocalPlugin(id, version)
 
     /**
-     * 将所有有效的已安装插件版本备份到 Backup/plugins.zip，成功后替换上一次快照。
-     * 包含安装版本目录中的资源、源码和空目录，不包含 Data/Cache；失败时抛出 [IllegalStateException]。
-     * 此操作同步访问文件，应在后台线程调用；Android/iOS 当前不支持备份。
-     */
-    fun backup(): Unit = backup(includeRuntimeData = false)
-
-    /**
-     * [includeRuntimeData] 为 true 时，同时备份已安装插件按 ID 共享的 Data，始终排除 Cache。
-     * 包含运行数据时，相关插件须先停止并卸载已加载实例，避免数据库或文件仍在写入。
+     * 将所有有效的已安装插件版本备份到 Backup/plugins.zip；[includeRuntimeData] 为 true 时，
+     * 同时备份已安装插件按 ID 共享的 Data，始终排除 Cache。
+     * 当 [includeRuntimeData] 为 true 时，相关插件须先停止并卸载已加载实例，避免数据库或文件仍在写入。
      * 备份期间不得并发安装、加载、卸载插件或写入运行数据。
+     * 此操作同步访问文件，应在后台线程调用；Android/iOS 当前不支持备份。
      */
     fun backup(includeRuntimeData: Boolean): Unit = backupLocalPlugins(includeRuntimeData)
 
