@@ -20,3 +20,8 @@ API 源码快照和 JVM 产物的发布包；解压后可以独立构建和重�
 核心入口面向 JVM、Android 和 iOS 共用；CLI 通过 JVM target 使用它。
 
 本工程的版本统一在 `build.gradle.kts` 的 `allprojects.version` 中配置。
+
+## 许可证
+
+本项目按 Apache License 2.0 发布，详见 [LICENSE](LICENSE)。第三方依赖及其许可
+仍以各自的声明为准。

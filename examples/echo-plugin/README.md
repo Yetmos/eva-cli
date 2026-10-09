@@ -84,7 +84,7 @@ Windows PowerShell 使用 `.\gradlew.bat assembleEvaPlugin`。
 不要修改快照来扩展宿主 API，应先在宿主实现并更新插件对应的 API 版本。
 
 仓库尚未发布统一插件 SDK，这种随包提供源码的方式用于保证当前示例可独立重建。
-源码许可沿用项目当前状态，未新增开源许可授权，详见 `LICENSE`；第三方声明见
+示例源码按 Apache License 2.0 发布，详见 `LICENSE`；第三方声明见
 `THIRD_PARTY_NOTICES.md`。
 
 ## 测试与本地加载
