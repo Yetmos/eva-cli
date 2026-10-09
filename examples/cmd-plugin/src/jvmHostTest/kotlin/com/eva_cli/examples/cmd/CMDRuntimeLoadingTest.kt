@@ -21,6 +21,10 @@ class CMDRuntimeLoadingTest {
             Path.of(checkNotNull(System.getProperty("eva.echoPlugin.stagingDirectory"))),
             root.resolve("echo.eva"),
         )
+        val rootArchive = zipDirectory(
+            Path.of(checkNotNull(System.getProperty("eva.rootPlugin.stagingDirectory"))),
+            root.resolve("root.eva"),
+        )
         val cmdArchive = zipDirectory(
             Path.of(checkNotNull(System.getProperty("eva.cmdPlugin.stagingDirectory"))),
             root.resolve("cmd.eva"),
@@ -29,10 +33,13 @@ class CMDRuntimeLoadingTest {
         try {
             System.setProperty("user.dir", root.toString())
             val echo = PlugManager.installPlugin(PluginSource.File(echoArchive.toString()))
+            val rootPlugin = PlugManager.installPlugin(PluginSource.File(rootArchive.toString()))
             val cmd = PlugManager.installPlugin(PluginSource.File(cmdArchive.toString()))
             loadedIds += echo.manifest.id
+            loadedIds += rootPlugin.manifest.id
             loadedIds += cmd.manifest.id
             PlugManager.loadPlugin(echo.manifest.id, echo.manifest.version)
+            PlugManager.loadPlugin(rootPlugin.manifest.id, rootPlugin.manifest.version)
             val loadedCmd = PlugManager.loadPlugin(cmd.manifest.id, cmd.manifest.version)
             val port = loadedCmd.providers.filterIsInstance<CommandLinePort>().single()
             val output = mutableListOf<String>()

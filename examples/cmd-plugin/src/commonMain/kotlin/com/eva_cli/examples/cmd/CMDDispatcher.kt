@@ -45,7 +45,9 @@ class CMDDispatcher : PluginDispatcher() {
                 if (argument.isEmpty()) {
                     commandPort.write(TextEvent("Usage: echo <text>"))
                 } else {
-                    commandPort.submitEvent(TextEvent(argument))
+                    commandPort.submitEvent(
+                        TextEvent(argument, metadata = Event.Metadata(targetTopic = "/Echo")),
+                    )
                 }
             }
             else -> commandPort.write(TextEvent("Unknown command: $command"))

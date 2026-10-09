@@ -39,7 +39,7 @@ class EchoPluginLoadingTest {
     private suspend fun assertPluginCanExchangeEvents(directory: File) {
         val manifest = Json.decodeFromString<PluginManifest>(directory.resolve("plugin.json").readText())
         assertEquals(1, manifest.formatVersion)
-        assertEquals(3, manifest.apiVersion)
+        assertEquals(4, manifest.apiVersion)
         assertEquals(System.getProperty("eva.echoPlugin.version"), manifest.version)
         val jvm = assertNotNull(manifest.platforms.jvm)
         assertTrue(Runtime.version().feature() >= assertNotNull(jvm.minJavaVersion))
@@ -52,7 +52,6 @@ class EchoPluginLoadingTest {
             assertTrue(classNames.all { it.startsWith("com/eva_cli/examples/echo/") },
                 "The plugin JAR must contain only plugin classes; the host supplies the API and runtime")
         }
-
         // jvmTest 自身的 classpath 包含示例类，屏蔽父级中的这些类，确保真实地从 JAR 加载。
         val hostLoader = object : ClassLoader(PluginEntry::class.java.classLoader) {
             override fun loadClass(name: String, resolve: Boolean): Class<*> {
@@ -67,10 +66,8 @@ class EchoPluginLoadingTest {
             assertSame(loader, entryClass.classLoader)
             assertEquals(artifact.canonicalFile, File(entryClass.protectionDomain.codeSource.location.toURI()).canonicalFile)
             val entry = entryClass.getConstructor().newInstance()
-            val root = entry.dispatchers.single { it.topic == "/" }
+            assertEquals(1, entry.dispatchers.size)
             val echo = entry.dispatchers.single { it.topic == "/Echo" }
-            assertSame(loader, root.javaClass.classLoader)
-            assertEquals("/", root.topic)
             assertSame(loader, echo.javaClass.classLoader)
             assertEquals("/Echo", echo.topic)
             val provider = entry.providers.single()
@@ -90,29 +87,24 @@ class EchoPluginLoadingTest {
                 override val files: PluginFiles get() = error("Echo does not use files")
             }
             widget.attach(context)
-            root.attach(context)
             echo.attach(context)
             assertSame(context, widget.context)
-            assertSame(widget.context, root.context)
             assertSame(widget.context, echo.context)
             assertEquals(manifest.id, widget.context.pluginId)
 
             val replies = mutableListOf<Event>()
-            root.dispatchers[echo.id] = echo
             echo.providers[provider.id] = provider
-            root.emit = { replies += it }
-            echo.emit = root::receive
+            echo.emit = { replies += it }
             widget.emit = echo::receive
             widget.start()
             try {
-                root.dispatch(TestEvent(Event.Payload.Text("hello")))
+                echo.dispatch(TestEvent(Event.Payload.Text("hello")))
                 assertEquals(Event.Payload.Text("Echo: hello"), replies.single().payload)
                 assertEquals(widget.id, replies.single().metadata.providerId)
             } finally {
                 widget.stop()
                 widget.emit = null
                 echo.emit = null
-                root.emit = null
             }
             assertEquals(Provider.Status.STOP, provider.status)
         }

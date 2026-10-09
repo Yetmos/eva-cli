@@ -80,9 +80,17 @@ tasks.named<Test>("jvmTest") {
     dependsOn(stageEvaPlugin)
     inputs.dir(pluginDirectory)
     inputs.dir(stagingDirectory)
-    systemProperty("eva.echoPlugin.directory", pluginDirectory.get().asFile.absolutePath)
-    systemProperty("eva.echoPlugin.stagingDirectory", stagingDirectory.get().asFile.absolutePath)
-    systemProperty("eva.echoPlugin.version", project.version.toString())
+    systemProperty("eva.cmdPlugin.stagingDirectory", stagingDirectory.get().asFile.absolutePath)
+    if (coreProject != null) {
+        dependsOn(":examples:echo-plugin:stageEvaPlugin")
+        dependsOn(":examples:root-plugin:stageEvaPlugin")
+        val echoStaging = rootProject.project(":examples:echo-plugin")
+            .layout.buildDirectory.dir("eva-staging")
+        val rootStaging = rootProject.project(":examples:root-plugin")
+            .layout.buildDirectory.dir("eva-staging")
+        systemProperty("eva.echoPlugin.stagingDirectory", echoStaging.get().asFile.absolutePath)
+        systemProperty("eva.rootPlugin.stagingDirectory", rootStaging.get().asFile.absolutePath)
+    }
 }
 
 tasks.register<Zip>("assembleEvaPlugin") {

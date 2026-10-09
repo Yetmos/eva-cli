@@ -19,6 +19,8 @@ echo hello
 
 它会提交 `hello` 文本事件，并输出 `Echo: hello`。
 
+运行时还必须安装提供唯一 `/` 根节点的 [Root Plugin](../root-plugin/README.md)。
+
 构建发布包：
 
 ```sh

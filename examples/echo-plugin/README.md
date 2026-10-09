@@ -11,10 +11,9 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/commonMain/kotlin/com/eva_cli/examples/echo/EchoPlugin.kt` | 实现 `PluginEntry`，公开无参构造器，提供根 Dispatcher 和 Echo Provider。 |
+| `src/commonMain/kotlin/com/eva_cli/examples/echo/EchoPlugin.kt` | 实现 `PluginEntry`，公开无参构造器，仅提供 Echo Dispatcher 和 Echo Provider。 |
 | `src/commonMain/kotlin/com/eva_cli/examples/echo/EchoProvider.kt` | 实现 `/Echo` topic 的文本回显及启停状态。 |
 | `src/commonMain/kotlin/com/eva_cli/examples/echo/EchoDispatcher.kt` | 将 `/Echo` 事件交给 EchoProvider，并把回复向上转发。 |
-| `src/commonMain/kotlin/com/eva_cli/examples/echo/RootDispatcher.kt` | 提供 `topic="/"` 的根 Dispatcher，由宿主 Booter 发现并启动。 |
 | `plugin.json` | 声明插件 ID、版本、JVM 入口类及 JAR 相对路径。 |
 | `src/jvmTest/kotlin/com/eva_cli/examples/echo/EchoPluginLoadingTest.kt` | 最小测试宿主：读清单、从实际 JAR 加载入口、绑定回调、收发事件并停止组件。 |
 | `src/jvmTest/kotlin/com/eva_cli/examples/echo/EvaPluginPackageTest.kt` | 检查发布内容包含独立工程和 API 源码，且未混入本机配置与构建缓存。 |
@@ -141,13 +140,11 @@ JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 `enable = false` 时忽略输入；二进制事件也会被忽略。输出异常和协程取消向上传递，
 并恢复处理状态；若输出回调停止了组件，则保留 `STOP` 状态。
 
-`PluginEntry` 仅提供组件，不负责启动它们。示例提供 `topic="/"` 的根 Dispatcher，
-宿主 `Booter` 会从已加载插件中发现并启动它；宿主不再内置 RootDispatcher。
-示例的事件路由为 `/ → /Echo → EchoProvider`；宿主启动根 Dispatcher 后即可通过根节点提交事件并接收回复。
+示例提供 `/Echo` Dispatcher 和 Provider；根节点由独立的 root 插件提供。
 
-当前插件接口为 `apiVersion: 3`：`Widget` 增加 `context` 和 `attach(context)`，
+当前插件接口为 `apiVersion: 4`：`Event.Metadata` 支持目标 topic，`Widget` 提供 `context` 和 `attach(context)`，
 `PluginProvider`、`PluginDispatcher` 通过 `BaseWidget` 提供绑定实现。
-从 API 2 迁移时，更新 SDK、重新编译和打包，并将清单的 `apiVersion` 设为 `3`；
+从 API 2 迁移时，更新 SDK、重新编译和打包，并将清单的 `apiVersion` 设为 `4`；
 直接实现 `Widget` 的类还需实现这两个成员。组件构造期间不得访问 Context，应在 `start()` 或后续调用中使用。
 从 API 1 迁移还需将 Provider 的 `start/stop` 改为挂起函数，并将 Dispatcher 的 `feedUp` 改为 `emit`。
 仅修改清单不能兼容旧二进制，旧 API 插件会被宿主拒绝。

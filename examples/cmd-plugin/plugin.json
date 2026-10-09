@@ -3,7 +3,7 @@
   "id": "com.eva_cli.cmd",
   "name": "CMD Plugin",
   "version": "0.1.0-alpha",
-  "apiVersion": 3,
+  "apiVersion": 4,
   "platforms": {
     "jvm": {
       "artifact": "prebuilt/jvm/plugin.jar",

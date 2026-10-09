@@ -11,7 +11,7 @@ import kotlin.concurrent.Volatile
 const val CURRENT_PLUGIN_FORMAT_VERSION: Int = 1
 
 // 当前宿主公开的插件 API 版本。
-const val CURRENT_PLUGIN_API_VERSION: Int = 3
+const val CURRENT_PLUGIN_API_VERSION: Int = 4
 
 // 安装插件时发现包内容不满足发布规范。
 class PluginInstallException(message: String, cause: Throwable? = null) : IllegalArgumentException(message, cause)

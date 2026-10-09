@@ -9,6 +9,8 @@ interface Event {
     val metadata: Metadata
     data class Metadata(
         var providerId: Uuid? = null,
+        /** Optional destination topic for an inbound event. */
+        val targetTopic: String? = null,
         val createdAt: Instant = Clock.System.now(),
     )
 

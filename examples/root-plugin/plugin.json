@@ -1,0 +1,22 @@
+{
+  "formatVersion": 1,
+  "id": "com.eva_cli.root",
+  "name": "Eva Root Dispatcher",
+  "version": "0.1.0-alpha",
+  "apiVersion": 4,
+  "platforms": {
+    "jvm": {
+      "artifact": "prebuilt/jvm/plugin.jar",
+      "entryClass": "com.eva_cli.examples.root.RootPlugin",
+      "minJavaVersion": 17
+    }
+  },
+  "source": {
+    "coordinate": "com.eva_cli:root-plugin:0.1.0-alpha",
+    "directory": ".",
+    "gradleProject": ":"
+  },
+  "builtWith": {
+    "kotlin": "2.4.20"
+  }
+}
