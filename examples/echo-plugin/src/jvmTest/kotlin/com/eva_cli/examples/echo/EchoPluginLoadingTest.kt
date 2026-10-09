@@ -67,9 +67,12 @@ class EchoPluginLoadingTest {
             assertSame(loader, entryClass.classLoader)
             assertEquals(artifact.canonicalFile, File(entryClass.protectionDomain.codeSource.location.toURI()).canonicalFile)
             val entry = entryClass.getConstructor().newInstance()
-            val root = entry.dispatchers.single()
+            val root = entry.dispatchers.single { it.topic == "/" }
+            val echo = entry.dispatchers.single { it.topic == "/Echo" }
             assertSame(loader, root.javaClass.classLoader)
             assertEquals("/", root.topic)
+            assertSame(loader, echo.javaClass.classLoader)
+            assertEquals("/Echo", echo.topic)
             val provider = entry.providers.single()
             assertSame(loader, provider.javaClass.classLoader)
             assertEquals("/Echo", provider.topic)
@@ -88,20 +91,28 @@ class EchoPluginLoadingTest {
             }
             widget.attach(context)
             root.attach(context)
+            echo.attach(context)
             assertSame(context, widget.context)
             assertSame(widget.context, root.context)
+            assertSame(widget.context, echo.context)
             assertEquals(manifest.id, widget.context.pluginId)
 
             val replies = mutableListOf<Event>()
-            widget.emit = { replies += it }
+            root.dispatchers[echo.id] = echo
+            echo.providers[provider.id] = provider
+            root.emit = { replies += it }
+            echo.emit = root::receive
+            widget.emit = echo::receive
             widget.start()
             try {
-                widget.receive(TestEvent(Event.Payload.Text("hello")))
+                root.dispatch(TestEvent(Event.Payload.Text("hello")))
                 assertEquals(Event.Payload.Text("Echo: hello"), replies.single().payload)
                 assertEquals(widget.id, replies.single().metadata.providerId)
             } finally {
                 widget.stop()
                 widget.emit = null
+                echo.emit = null
+                root.emit = null
             }
             assertEquals(Provider.Status.STOP, provider.status)
         }

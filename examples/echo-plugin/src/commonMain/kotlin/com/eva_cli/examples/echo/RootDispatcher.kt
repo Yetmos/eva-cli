@@ -12,7 +12,18 @@ class RootDispatcher : PluginDispatcher() {
     override val desc = "Root dispatcher supplied by the Echo plugin"
     override val topic = "/"
 
-    override suspend fun dispatch(event: Event) = Unit
+    override suspend fun dispatch(event: Event) {
+        if (!enable) return
 
-    override suspend fun receive(event: Event) = Unit
+        val echo = dispatchers.values.filter { it.topic == "/Echo" }
+        check(echo.size == 1) {
+            "topic=/ 必须且只能有一个 /Echo Dispatcher，实际找到 ${echo.size} 个"
+        }
+        echo.single().dispatch(event)
+    }
+
+    override suspend fun receive(event: Event) {
+        if (!enable) return
+        checkNotNull(emit) { "Bind RootDispatcher.emit before receiving events" }(event)
+    }
 }
