@@ -1,0 +1,14 @@
+{
+  "formatVersion": 1,
+  "id": "com.eva_cli.cmd",
+  "name": "CMD Plugin",
+  "version": "0.1.0-alpha",
+  "apiVersion": 3,
+  "platforms": {
+    "jvm": {
+      "artifact": "prebuilt/jvm/plugin.jar",
+      "entryClass": "com.eva_cli.examples.cmd.CMDPlugin",
+      "minJavaVersion": 17
+    }
+  }
+}
