@@ -24,7 +24,7 @@ echo hello
 构建发布包：
 
 ```sh
-./gradlew :examples:cmd-plugin:assembleEvaPlugin
+./gradlew :plugins:cmd-plugin:assembleEvaPlugin
 ```
 
 安装 `.eva` 后，宿主通过现有 `PlugManager.installPlugin` / `loadPlugin` 加载它，再运行

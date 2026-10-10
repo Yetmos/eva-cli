@@ -222,8 +222,8 @@ class ChatProvider : PluginProvider() {
 注册、绑定回调及调用组件的 `start` / `stop`，读取列表不会启动组件。入口类名必须与 `plugin.json` 中
 对应平台的 `entryClass` 或 `factory` 一致。
 
-仓库内的 `eva-cli/examples/echo-plugin` 提供最小入口、文本回显 Provider 和 JVM 加载测试。
-在 `eva-cli` 目录执行 `./gradlew :examples:echo-plugin:check` 可构建并验证该示例。
+仓库内的 `eva-cli/plugins/echo-plugin` 提供最小入口、文本回显 Provider 和 JVM 加载测试。
+在 `eva-cli` 目录执行 `./gradlew :plugins:echo-plugin:check` 可构建并验证该示例。
 
 组件扫描已接入已加载插件查询；records 备份恢复和根节点消息路由仍在实现中。
 上述继承约定定义的是插件 API 边界，不能替代宿主的完整运行时调度实现。
@@ -282,7 +282,7 @@ Android 权限仍须由宿主 manifest 声明；此接口没有启用尚未完�
 应用持有的权限桥接由应用管理。释放加载器不删除持久数据，也不会终止插件自行创建且未纳入 scope 的线程。
 同步卸载必须由插件 scope 和数据库 factory 外的宿主代码执行；从内部卸载会立即报错并保留加载记录。
 
-网络、偏好、文件及 Room 包装示例见 `eva-cli/examples/echo-plugin/README.md`。
+网络、偏好、文件及 Room 包装示例见 `eva-cli/plugins/echo-plugin/README.md`。
 发布的独立 SDK 必须包含 `BaseWidget.kt`、`widgets/context/*.kt` 和已有协程依赖，
 以便解析 `CoroutineScope` 与 `Flow`。插件仍须重新编译为 API 4，JAR 中不包含宿主 API 类。
 

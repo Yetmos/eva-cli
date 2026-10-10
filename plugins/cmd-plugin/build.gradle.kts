@@ -28,12 +28,12 @@ apply(from = "packaging/eva-plugin.gradle.kts")
 
 kotlin.sourceSets["jvmTest"].kotlin.srcDir("src/jvmHostTest/kotlin")
 
-val echoStaging = rootProject.project(":examples:echo-plugin")
+val echoStaging = rootProject.project(":plugins:echo-plugin")
     .layout.buildDirectory.dir("eva-staging")
 val cmdStage = tasks.named<Sync>("stageEvaPlugin")
 
 tasks.named<Test>("jvmTest") {
-    dependsOn(":examples:echo-plugin:stageEvaPlugin")
+    dependsOn(":plugins:echo-plugin:stageEvaPlugin")
     systemProperty(
         "eva.cmdPlugin.stagingDirectory",
         cmdStage.get().destinationDir.absolutePath,

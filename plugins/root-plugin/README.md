@@ -19,5 +19,5 @@ is loaded.
 Build the release package from the `eva-cli` directory:
 
 ```sh
-./gradlew :examples:root-plugin:assembleEvaPlugin
+./gradlew :plugins:root-plugin:assembleEvaPlugin
 ```

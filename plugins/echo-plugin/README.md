@@ -24,16 +24,16 @@
 在 `eva-cli` 目录运行：
 
 ```sh
-./gradlew :examples:echo-plugin:assembleEvaPlugin
+./gradlew :plugins:echo-plugin:assembleEvaPlugin
 ```
 
 如果当前位于 EvaLauncher 仓库根目录，先执行 `cd eva-cli`。
-Windows PowerShell 使用 `.\gradlew.bat :examples:echo-plugin:assembleEvaPlugin`。
+Windows PowerShell 使用 `.\gradlew.bat :plugins:echo-plugin:assembleEvaPlugin`。
 
 该任务编译插件、组装独立工程、运行 Provider 行为和实际 JAR 加载测试，再生成：
 
 ```text
-examples/echo-plugin/build/distributions/echo-plugin-0.1.0-alpha.eva
+plugins/echo-plugin/build/distributions/echo-plugin-0.1.0-alpha.eva
 ```
 
 `.eva` 是 ZIP 文件，解压后根目录为：
@@ -91,14 +91,14 @@ Windows PowerShell 使用 `.\gradlew.bat assembleEvaPlugin`。
 仓库内运行测试：
 
 ```sh
-./gradlew :examples:echo-plugin:check
+./gradlew :plugins:echo-plugin:check
 ```
 
 在解压工程中使用 `./gradlew check`。测试覆盖 Provider 行为、开发产物和发布暂存目录中
 的 JAR 加载、发布结构检查。完整发布内容暂存于 `build/eva-staging/`，开发产物位于：
 
 ```text
-examples/echo-plugin/build/plugin/
+plugins/echo-plugin/build/plugin/
 ├── plugin.json
 └── prebuilt/jvm/plugin.jar
 ```
@@ -106,20 +106,20 @@ examples/echo-plugin/build/plugin/
 仓库内只组装插件清单与开发产物：
 
 ```sh
-./gradlew :examples:echo-plugin:prepareJvmPlugin
+./gradlew :plugins:echo-plugin:prepareJvmPlugin
 ```
 
 仓库内只运行加载测试：
 
 ```sh
-./gradlew :examples:echo-plugin:jvmTest --tests '*EchoPluginLoadingTest'
+./gradlew :plugins:echo-plugin:jvmTest --tests '*EchoPluginLoadingTest'
 ```
 
 加载测试以宿主的 `PluginEntry` ClassLoader 为共享 API 的来源，并屏蔽测试进程
 classpath 中的示例类，确认入口及 Provider 实际由生成的 JAR 加载，并验证 Context 的共享类型和组件绑定。
 JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 
-解压工程执行相同任务时省略 `:examples:echo-plugin:` 前缀。
+解压工程执行相同任务时省略 `:plugins:echo-plugin:` 前缀。
 宿主加载时读取包根目录 `plugin.json`，从 `prebuilt/jvm/plugin.jar` 创建
 `com.eva_cli.examples.echo.EchoPlugin`。JVM 宿主已提供 `PlugManager.installPlugin` 和 `loadPlugin`；
 已有加载测试提供可执行的最小宿主流程。
