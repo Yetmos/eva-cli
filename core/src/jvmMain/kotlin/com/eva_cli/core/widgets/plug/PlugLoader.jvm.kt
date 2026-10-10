@@ -101,6 +101,7 @@ internal actual fun loadLocalPlugin(id: String, version: String): LoadedPlugin {
             pluginDirectory = versionDirectory,
             resourcesPath = manifest.resources,
             permissions = HostPluginPermissions,
+            networkPolicy = PlugManager.networkPolicy,
         )
         context = pluginContext
         for (widget in providers + dispatchers) widget.attach(pluginContext)

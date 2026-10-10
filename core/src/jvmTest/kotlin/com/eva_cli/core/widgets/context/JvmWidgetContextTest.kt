@@ -219,6 +219,160 @@ class JvmWidgetContextTest {
     }
 
     @Test
+    fun networkPoliciesLimitBodiesValidateRequestsAndClassifyHttpErrors() = withRuntime { root, plugin ->
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/large") { exchange ->
+            val body = "123456".encodeToByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.createContext("/error") { exchange ->
+            val body = "bad".encodeToByteArray()
+            exchange.sendResponseHeaders(400, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.start()
+        val host = context(
+            root,
+            plugin,
+            networkPolicy = PluginNetworkPolicy(
+                maxRequestBytes = 2,
+                maxResponseBytes = 3,
+                allowPrivateAddresses = true,
+            ),
+        )
+        val base = "http://127.0.0.1:${server.address.port}"
+        try {
+            runBlocking {
+                assertFailsWith<NetworkRequestTooLargeException> {
+                    host.network.execute(NetworkRequest("$base/large", body = byteArrayOf(1, 2, 3)))
+                }
+                assertFailsWith<NetworkResponseTooLargeException> {
+                    host.network.execute(NetworkRequest("$base/large"))
+                }
+                val failure = assertFailsWith<NetworkHttpException> {
+                    host.network.execute(NetworkRequest("$base/error", failOnHttpError = true))
+                }
+                assertEquals(400, failure.status)
+                assertContentEquals("bad".encodeToByteArray(), failure.responseBody)
+                assertFailsWith<NetworkPolicyException> {
+                    host.network.execute(NetworkRequest("ftp://example.test/file"))
+                }
+                assertFailsWith<NetworkPolicyException> {
+                    host.network.execute(NetworkRequest("$base/large", allowInsecureHttp = false))
+                }
+                assertFailsWith<NetworkPolicyException> {
+                    host.network.execute(NetworkRequest("$base/large", allowedHosts = setOf("example.test")))
+                }
+                assertFailsWith<NetworkPolicyException> {
+                    host.network.execute(NetworkRequest("$base/large", allowPrivateAddresses = false))
+                }
+                assertFailsWith<NetworkPolicyException> {
+                    host.network.execute(NetworkRequest("$base/large", headers = mapOf("Bad Header" to "x")))
+                }
+            }
+        } finally {
+            host.close()
+            server.stop(0)
+        }
+    }
+
+    @Test
+    fun networkDownloadStreamsAndReportsMetrics() = withRuntime { root, plugin ->
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/stream") { exchange ->
+            val body = "streamed-response".encodeToByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.start()
+        val host = context(root, plugin, networkPolicy = PluginNetworkPolicy(allowPrivateAddresses = true))
+        try {
+            runBlocking {
+                val chunks = mutableListOf<ByteArray>()
+                val response = host.network.download(
+                    NetworkRequest("http://127.0.0.1:${server.address.port}/stream"),
+                ) { chunks += it }
+                assertEquals(200, response.status)
+                assertTrue(response.body.isEmpty())
+                assertContentEquals("streamed-response".encodeToByteArray(), chunks.fold(byteArrayOf()) { a, b -> a + b })
+                assertEquals(1, host.network.metrics.totalRequests)
+                assertTrue(host.network.metrics.bytesReceived >= "streamed-response".length)
+            }
+        } finally {
+            host.close()
+            server.stop(0)
+        }
+    }
+
+    @Test
+    fun networkRejectsCrossHostRedirectWhenPolicyDisallowsIt() = withRuntime { root, plugin ->
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/redirect") { exchange ->
+            exchange.responseHeaders.add("Location", "http://localhost:${server.address.port}/target")
+            exchange.sendResponseHeaders(302, -1)
+            exchange.close()
+        }
+        server.createContext("/target") { exchange ->
+            val body = "target".encodeToByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.start()
+        val host = context(
+            root,
+            plugin,
+            networkPolicy = PluginNetworkPolicy(allowCrossHostRedirects = false, allowPrivateAddresses = true),
+        )
+        try {
+            runBlocking {
+                assertFailsWith<NetworkPolicyException> {
+                    host.network.execute(NetworkRequest("http://127.0.0.1:${server.address.port}/redirect"))
+                }
+            }
+        } finally {
+            host.close()
+            server.stop(0)
+        }
+    }
+
+    @Test
+    fun networkAppliesTimeoutAndByteRateLimit() = withRuntime { root, plugin ->
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/slow") { exchange ->
+            Thread.sleep(250)
+            val body = "slow".encodeToByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.createContext("/quota") { exchange ->
+            val body = "1234".encodeToByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.start()
+        val host = context(
+            root,
+            plugin,
+            networkPolicy = PluginNetworkPolicy(maxBytesPerMinute = 3, allowPrivateAddresses = true),
+        )
+        val base = "http://127.0.0.1:${server.address.port}"
+        try {
+            runBlocking {
+                assertFailsWith<NetworkTimeoutException> {
+                    host.network.execute(NetworkRequest("$base/slow", requestTimeoutMillis = 50))
+                }
+                assertFailsWith<NetworkPolicyException> {
+                    host.network.execute(NetworkRequest("$base/quota"))
+                }.also { assertEquals(NetworkPolicyViolation.BYTE_RATE_LIMIT, it.violation) }
+            }
+        } finally {
+            host.close()
+            server.stop(0)
+        }
+    }
+
+    @Test
     fun closeCancelsPluginWorkAndAllServicesRejectFurtherUse() = withRuntime { root, plugin ->
         val host = context(root, plugin)
         val cancelled = CompletableDeferred<Unit>()
@@ -341,8 +495,13 @@ class JvmWidgetContextTest {
         }
     }
 
-    private fun context(root: Path, plugin: Path, id: String = "test", resources: String? = null) =
-        JvmWidgetContext(id, root, plugin, resources, UnavailablePluginPermissions)
+    private fun context(
+        root: Path,
+        plugin: Path,
+        id: String = "test",
+        resources: String? = null,
+        networkPolicy: PluginNetworkPolicy = PluginNetworkPolicy(),
+    ) = JvmWidgetContext(id, root, plugin, resources, UnavailablePluginPermissions, networkPolicy)
 
     private fun withRuntime(block: (Path, Path) -> Unit) {
         val root = Files.createTempDirectory("eva-widget-context-")

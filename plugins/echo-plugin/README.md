@@ -142,9 +142,9 @@ JAR 仅包含插件代码，Kotlin 运行库及宿主 API 由宿主提供。
 
 示例提供 `/Echo` Dispatcher 和 Provider；根节点由独立的 root 插件提供。
 
-当前插件接口为 `apiVersion: 4`：`Widget` 提供 `context` 和 `attach(context)`，
+当前插件接口为 `apiVersion: 5`：`Widget` 提供 `context` 和 `attach(context)`，
 `PluginProvider`、`PluginDispatcher` 通过 `BaseWidget` 提供绑定实现。
-从 API 2 迁移时，更新 SDK、重新编译和打包，并将清单的 `apiVersion` 设为 `4`；
+从 API 2 迁移时，更新 SDK、重新编译和打包，并将清单的 `apiVersion` 设为 `5`；
 直接实现 `Widget` 的类还需实现这两个成员。组件构造期间不得访问 Context，应在 `start()` 或后续调用中使用。
 从 API 1 迁移还需将 Provider 的 `start/stop` 改为挂起函数，并将 Dispatcher 的 `feedUp` 改为 `emit`。
 仅修改清单不能兼容旧二进制，旧 API 插件会被宿主拒绝。

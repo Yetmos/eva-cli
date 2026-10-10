@@ -39,7 +39,7 @@ class EchoPluginLoadingTest {
     private suspend fun assertPluginCanExchangeEvents(directory: File) {
         val manifest = Json.decodeFromString<PluginManifest>(directory.resolve("plugin.json").readText())
         assertEquals(1, manifest.formatVersion)
-        assertEquals(4, manifest.apiVersion)
+        assertEquals(5, manifest.apiVersion)
         assertEquals(System.getProperty("eva.echoPlugin.version"), manifest.version)
         val jvm = assertNotNull(manifest.platforms.jvm)
         assertTrue(Runtime.version().feature() >= assertNotNull(jvm.minJavaVersion))

@@ -3,6 +3,7 @@ package com.eva_cli.core.widgets.plug
 import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
 import com.eva_cli.core.widgets.provider.PluginProvider
 import com.eva_cli.core.widgets.context.PluginPermissions
+import com.eva_cli.core.widgets.context.PluginNetworkPolicy
 import com.eva_cli.core.widgets.context.UnavailablePluginPermissions
 import com.eva_cli.core.widgets.context.WidgetContext
 import kotlin.concurrent.Volatile
@@ -11,7 +12,7 @@ import kotlin.concurrent.Volatile
 const val CURRENT_PLUGIN_FORMAT_VERSION: Int = 1
 
 // 当前宿主公开的插件 API 版本。
-const val CURRENT_PLUGIN_API_VERSION: Int = 4
+const val CURRENT_PLUGIN_API_VERSION: Int = 5
 
 // 安装插件时发现包内容不满足发布规范。
 class PluginInstallException(message: String, cause: Throwable? = null) : IllegalArgumentException(message, cause)
@@ -51,6 +52,10 @@ object PlugManager {
     /** 由宿主 UI 安装权限桥接；销毁时恢复默认值。CLI 默认不提供交互权限申请。 */
     @Volatile
     var permissions: PluginPermissions = UnavailablePluginPermissions
+
+    /** Host-wide network restrictions applied to newly loaded plugins. */
+    @Volatile
+    var networkPolicy: PluginNetworkPolicy = PluginNetworkPolicy()
 
     /** 当前进程已加载插件的只读快照，按 ID 排序；Android/iOS 当前不支持查询。 */
     val loadedList: List<LoadedPlugin>

@@ -86,7 +86,7 @@ chat-plugin-1.0.0.eva
   "id": "com.example.chat",
   "name": "Chat Plugin",
   "version": "1.0.0",
-  "apiVersion": 4,
+  "apiVersion": 5,
   "resources": "resources",
   "platforms": {
     "jvm": {
@@ -238,7 +238,7 @@ class ChatProvider : PluginProvider() {
 | 能力 | API | 所有权与边界 |
 | --- | --- | --- |
 | 身份与协程 | `pluginId`、`scope` | ID 来自清单；scope 属于整个已加载插件。 |
-| 网络 | `network.execute(NetworkRequest)` | 宿主使用 Ktor，公共请求/响应不包含 Ktor 类型。 |
+| 网络 | `network.execute/download/stream` | 支持超时、请求/响应大小限制、URL/请求头校验、域名白名单、HTTPS/私网策略、重定向控制、统一异常、并发/速率/流量限制和指标；公共请求/响应不暴露 Ktor 类型。 |
 | 偏好 | `preferences.get/put/remove`、`values` | 宿主使用 DataStore；字符串值由插件自行序列化，变更通过 Flow 提供。 |
 | 数据库 | `databases.open(name, factory)` | 插件创建自己的数据库，宿主管理路径、复用和释放。 |
 | 文件 | `files.read/write/delete/list` | 使用相对路径；DATA、CACHE 按插件分开，RESOURCES 只读。 |
@@ -284,7 +284,7 @@ Android 权限仍须由宿主 manifest 声明；此接口没有启用尚未完�
 
 网络、偏好、文件及 Room 包装示例见 `eva-cli/plugins/echo-plugin/README.md`。
 发布的独立 SDK 必须包含 `BaseWidget.kt`、`widgets/context/*.kt` 和已有协程依赖，
-以便解析 `CoroutineScope` 与 `Flow`。插件仍须重新编译为 API 4，JAR 中不包含宿主 API 类。
+以便解析 `CoroutineScope` 与 `Flow`。插件仍须重新编译为 API 5，JAR 中不包含宿主 API 类。
 
 ## JVM 本地安装
 

@@ -8,15 +8,31 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.eva_cli.core.runtime.Configure
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.timeout
+import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsBytes
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpMethod
+import io.ktor.utils.io.readAvailable
+import java.io.IOException
+import java.net.ConnectException
+import java.net.InetAddress
+import java.net.URI
+import java.net.UnknownHostException
+import java.security.cert.CertificateException
+import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
+import javax.net.ssl.SSLException
 import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -27,6 +43,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 
 /** One owner per loaded plugin; close before another context opens the same plugin data. */
 internal class JvmWidgetContext(
@@ -35,6 +55,7 @@ internal class JvmWidgetContext(
     pluginDirectory: Path,
     resourcesPath: String?,
     permissions: PluginPermissions,
+    networkPolicy: PluginNetworkPolicy = PluginNetworkPolicy(),
 ) : WidgetContext {
     private val lock = Any()
     private val closeLock = Any()
@@ -47,6 +68,15 @@ internal class JvmWidgetContext(
     private val resourcesRoot: Path?
     private val permissionBridge = permissions
     private var client: HttpClient? = null
+    private val networkPolicy = networkPolicy
+    private val networkPermits = Semaphore(networkPolicy.maxConcurrentRequests)
+    private val requestCount = AtomicLong()
+    private val failedCount = AtomicLong()
+    private val sentBytes = AtomicLong()
+    private val receivedBytes = AtomicLong()
+    private val minuteWindow = ArrayDeque<Long>()
+    private val minuteBytes = ArrayDeque<ByteCount>()
+    private val rateLock = Any()
     private var store: DataStore<Preferences>? = null
     private val openDatabases = mutableMapOf<String, DatabaseEntry>()
     private val openingDatabases = mutableMapOf<String, DatabaseOpening>()
@@ -57,22 +87,315 @@ internal class JvmWidgetContext(
     }
 
     override val network: PluginNetwork = object : PluginNetwork {
+        override val policy: PluginNetworkPolicy get() = networkPolicy
+        override val metrics: NetworkMetrics
+            get() = NetworkMetrics(
+                totalRequests = requestCount.get(),
+                activeRequests = networkPolicy.maxConcurrentRequests - networkPermits.availablePermits,
+                failedRequests = failedCount.get(),
+                bytesSent = sentBytes.get(),
+                bytesReceived = receivedBytes.get(),
+            )
+
         override suspend fun execute(request: NetworkRequest): NetworkResponse = withinLifetime {
+            acquireNetworkPermit()
+            try {
+                performNetworkRequest(request, stream = null)
+            } finally {
+                networkPermits.release()
+            }
+        }
+
+        override suspend fun download(
+            request: NetworkRequest,
+            onChunk: suspend (ByteArray) -> Unit,
+        ): NetworkResponse = withinLifetime {
+            requireNotNull(onChunk) { "onChunk" }
+            acquireNetworkPermit()
+            try {
+                performNetworkRequest(request, stream = onChunk)
+            } finally {
+                networkPermits.release()
+            }
+        }
+    }
+
+    private suspend fun acquireNetworkPermit() {
+        if (networkPolicy.maxRequestsPerMinute != null) {
+            while (true) {
+                val wait = synchronized(rateLock) {
+                    val now = System.currentTimeMillis()
+                    trimRateWindow(now)
+                    if (minuteWindow.size < networkPolicy.maxRequestsPerMinute) {
+                        minuteWindow.addLast(now)
+                        0L
+                    } else 1_000L
+                }
+                if (wait == 0L) break
+                kotlinx.coroutines.delay(wait)
+            }
+        }
+        networkPermits.acquire()
+    }
+
+    private fun trimRateWindow(now: Long) {
+        val cutoff = now - 60_000L
+        while (minuteWindow.firstOrNull()?.let { it <= cutoff } == true) minuteWindow.removeFirst()
+        while (minuteBytes.firstOrNull()?.timestamp?.let { it <= cutoff } == true) minuteBytes.removeFirst()
+    }
+
+    private fun consumeBytesQuota(bytes: Long) {
+        val limit = networkPolicy.maxBytesPerMinute ?: return
+        synchronized(rateLock) {
+            val now = System.currentTimeMillis()
+            trimRateWindow(now)
+            val used = minuteBytes.sumOf { it.bytes }
+            if (used + bytes > limit) {
+                throw NetworkPolicyException(NetworkPolicyViolation.BYTE_RATE_LIMIT, "Network byte rate limit exceeded")
+            }
+            minuteBytes.addLast(ByteCount(now, bytes))
+        }
+    }
+
+    private data class ByteCount(val timestamp: Long, val bytes: Long)
+
+    /** Executes one request, manually following redirects so each hop is policy checked. */
+    private suspend fun performNetworkRequest(
+        initial: NetworkRequest,
+        stream: (suspend (ByteArray) -> Unit)?,
+    ): NetworkResponse {
+        val requestTimeout = effectiveTimeout(initial.requestTimeoutMillis) ?: Long.MAX_VALUE
+        return try {
+            if (requestTimeout == Long.MAX_VALUE) {
+                performNetworkRequestUnbounded(initial, stream)
+            } else {
+                withTimeoutOrNull(requestTimeout) { performNetworkRequestUnbounded(initial, stream) }
+                    ?: throw NetworkTimeoutException(requestTimeout, NetworkTimeoutPhase.REQUEST)
+            }
+        } catch (error: NetworkTimeoutException) {
+            failedCount.incrementAndGet()
+            throw error
+        } catch (error: CancellationException) {
+            // Preserve structured cancellation for unload/caller cancellation. An engine-level
+            // cancellation while this coroutine is otherwise active is exposed uniformly.
+            if (!currentCoroutineContext().isActive) throw error
+            failedCount.incrementAndGet()
+            throw NetworkCancelledException(error)
+        } catch (error: NetworkException) {
+            failedCount.incrementAndGet()
+            throw error
+        } catch (error: Throwable) {
+            failedCount.incrementAndGet()
+            throw mapNetworkError(error, initial.url)
+        }
+    }
+
+    private suspend fun performNetworkRequestUnbounded(
+        initial: NetworkRequest,
+        stream: (suspend (ByteArray) -> Unit)?,
+    ): NetworkResponse {
+        initial.validate(networkPolicy)
+        val requestLimit = listOfNotNull(networkPolicy.maxRequestBytes, initial.maxRequestBytes).minOrNull()
+        val sent = initial.body?.size?.toLong() ?: 0L
+        if (requestLimit != null && sent > requestLimit) throw NetworkRequestTooLargeException(requestLimit, sent, null)
+        consumeBytesQuota(sent)
+        sentBytes.addAndGet(sent)
+        requestCount.incrementAndGet()
+
+        var currentUrl = initial.url
+        var method = initial.method
+        var body = initial.body
+        var redirectCount = 0
+        var credentialsAllowed = true
+        while (true) {
+            validateNetworkUrl(currentUrl, initial)
             val http = synchronized(lock) {
                 requireOpen()
-                client ?: HttpClient(OkHttp).also { client = it }
+                client ?: HttpClient(OkHttp) {
+                    // Redirects are handled here to enforce host and private-address checks per hop.
+                    followRedirects = false
+                    install(HttpTimeout) {
+                        connectTimeoutMillis = networkPolicy.connectTimeoutMillis
+                        requestTimeoutMillis = networkPolicy.requestTimeoutMillis
+                        socketTimeoutMillis = networkPolicy.readTimeoutMillis
+                    }
+                }.also { client = it }
             }
-            val response = http.request(request.url) {
-                method = HttpMethod.parse(request.method)
-                request.headers.forEach { (name, value) -> headers.append(name, value) }
-                request.body?.let { setBody(it) }
+            val response = http.request(currentUrl) {
+                this.method = HttpMethod.parse(method)
+                val sameOrigin = credentialsAllowed
+                initial.headers.forEach { (name, value) ->
+                    // Credentials must not cross an origin boundary during redirects.
+                    if (sameOrigin || !name.equals("Authorization", true) && !name.equals("Proxy-Authorization", true) && !name.equals("Cookie", true)) {
+                        headers.append(name, value)
+                    }
+                }
+                body?.let { setBody(it) }
+                timeout {
+                    connectTimeoutMillis = effectiveConnectTimeout(initial.connectTimeoutMillis)
+                    requestTimeoutMillis = effectiveRequestTimeout(initial.requestTimeoutMillis)
+                    socketTimeoutMillis = effectiveReadTimeout(initial.readTimeoutMillis)
+                }
             }
-            NetworkResponse(
-                status = response.status.value,
+            val status = response.status.value
+            if (status in 300..399 && initial.followRedirects && networkPolicy.followRedirects) {
+                val location = response.headers["Location"]
+                if (!location.isNullOrBlank()) {
+                    if (redirectCount >= minOf(initial.maxRedirects, networkPolicy.maxRedirects)) {
+                        response.bodyAsChannel().cancel(IllegalStateException("redirect limit"))
+                        throw NetworkRedirectException(minOf(initial.maxRedirects, networkPolicy.maxRedirects), null)
+                    }
+                    val nextUrl = URI(currentUrl).resolve(location).toString()
+                    val oldUri = URI(currentUrl)
+                    val newUri = URI(nextUrl)
+                    val oldHost = oldUri.host?.lowercase(Locale.ROOT)
+                    val newHost = newUri.host?.lowercase(Locale.ROOT)
+                    val secureDowngrade = oldUri.scheme.equals("https", true) && newUri.scheme.equals("http", true)
+                    if (oldHost != newHost && (!initial.allowCrossHostRedirects || !networkPolicy.allowCrossHostRedirects)) {
+                        response.bodyAsChannel().cancel(IllegalStateException("cross-host redirect"))
+                        throw NetworkPolicyException(NetworkPolicyViolation.HOST_NOT_ALLOWED, "Cross-host redirects are disabled")
+                    }
+                    currentUrl = nextUrl
+                    redirectCount++
+                    if (oldHost != newHost) {
+                        // Once credentials are stripped, they must not be reintroduced by a
+                        // later redirect hop (for example after an HTTPS downgrade).
+                        credentialsAllowed = credentialsAllowed &&
+                            initial.preserveSensitiveHeadersOnRedirect &&
+                            networkPolicy.preserveSensitiveHeadersOnRedirect
+                    } else if (secureDowngrade) {
+                        // Never send credentials from HTTPS over a plaintext downgrade.
+                        credentialsAllowed = false
+                        // RFC 9110 allows changing method for 301/302/303; credentials are removed above.
+                        if (status == 301 || status == 302 || status == 303) {
+                            method = "GET"
+                            body = null
+                        }
+                    } else if (status == 301 || status == 302 || status == 303) {
+                        method = "GET"
+                        body = null
+                    }
+                    response.bodyAsChannel().cancel(IllegalStateException("redirecting"))
+                    continue
+                }
+            }
+            val maxResponse = listOfNotNull(networkPolicy.maxResponseBytes, initial.maxResponseBytes).minOrNull()
+            val contentLength = response.headers["Content-Length"]?.toLongOrNull()
+            if (maxResponse != null && contentLength != null && contentLength > maxResponse) {
+                response.bodyAsChannel().cancel(IllegalStateException("response too large"))
+                throw NetworkResponseTooLargeException(maxResponse, contentLength, null)
+            }
+            val bytes = readResponse(response, maxResponse, stream)
+            receivedBytes.addAndGet(bytes.second)
+            return NetworkResponse(
+                // HTTP errors remain normal responses by default for compatibility.
+                status = status,
                 headers = response.headers.entries().associate { it.key to it.value },
-                body = response.bodyAsBytes(),
-            )
+                body = bytes.first,
+                effectiveUrl = currentUrl,
+                redirectCount = redirectCount,
+                contentLength = contentLength ?: bytes.second,
+            ).also { result ->
+                if (initial.failOnHttpError && status >= 400) {
+                    throw NetworkHttpException(status, result.headers, result.body)
+                }
+            }
         }
+    }
+
+    private suspend fun readResponse(
+        response: HttpResponse,
+        maxBytes: Long?,
+        stream: (suspend (ByteArray) -> Unit)?,
+    ): Pair<ByteArray, Long> {
+        val channel = response.bodyAsChannel()
+        val output = if (stream == null) java.io.ByteArrayOutputStream() else null
+        val buffer = ByteArray(16 * 1024)
+        var total = 0L
+        try {
+            while (true) {
+                val read = channel.readAvailable(buffer, 0, buffer.size)
+                if (read == -1) break
+                if (read == 0) {
+                    kotlinx.coroutines.yield()
+                    continue
+                }
+                total += read
+                consumeBytesQuota(read.toLong())
+                if (maxBytes != null && total > maxBytes) {
+                    throw NetworkResponseTooLargeException(maxBytes, total, null)
+                }
+                val chunk = buffer.copyOf(read)
+                if (stream != null) stream(chunk) else output!!.write(chunk)
+            }
+            return (output?.toByteArray() ?: ByteArray(0)) to total
+        } catch (error: Throwable) {
+            channel.cancel(error)
+            throw error
+        }
+    }
+
+    private fun validateNetworkUrl(url: String, request: NetworkRequest) {
+        val uri = try { URI(url) } catch (error: Throwable) { throw NetworkInvalidUrlException(url, error) }
+        val scheme = uri.scheme?.lowercase(Locale.ROOT)
+        if (scheme != "http" && scheme != "https" || uri.host.isNullOrBlank() || uri.userInfo != null || uri.port > 65535) {
+            throw NetworkInvalidUrlException(url)
+        }
+        if (scheme == "http" && (!request.allowInsecureHttp || !networkPolicy.allowInsecureHttp)) {
+            throw NetworkPolicyException(NetworkPolicyViolation.INSECURE_HTTP)
+        }
+        val host = uri.host!!.lowercase(Locale.ROOT).trimEnd('.')
+        if (networkPolicy.allowedHosts.isNotEmpty() && !networkPolicy.allowedHosts.any { host == it.lowercase(Locale.ROOT).trimEnd('.') }) {
+            throw NetworkPolicyException(NetworkPolicyViolation.HOST_NOT_ALLOWED, "Host is not allowed: $host")
+        }
+        if (request.allowedHosts.isNotEmpty() && !request.allowedHosts.any { host == it.lowercase(Locale.ROOT).trimEnd('.') }) {
+            throw NetworkPolicyException(NetworkPolicyViolation.HOST_NOT_ALLOWED, "Host is not allowed: $host")
+        }
+        if (!request.allowPrivateAddresses || !networkPolicy.allowPrivateAddresses) {
+            val addresses = try { InetAddress.getAllByName(host) } catch (error: UnknownHostException) {
+                throw NetworkDnsException(host, error)
+            }
+            if (addresses.any(::isPrivateAddress)) {
+                throw NetworkPolicyException(NetworkPolicyViolation.PRIVATE_ADDRESS, "Private address is not allowed: $host")
+            }
+        }
+    }
+
+    private fun isPrivateAddress(address: InetAddress): Boolean {
+        if (address.isAnyLocalAddress || address.isLoopbackAddress || address.isLinkLocalAddress ||
+            address.isSiteLocalAddress || address.isMulticastAddress
+        ) return true
+        val bytes = address.address
+        if (bytes.size == 4) {
+            val first = bytes[0].toInt() and 0xff
+            val second = bytes[1].toInt() and 0xff
+            // Carrier-grade NAT and benchmarking ranges are not globally routable.
+            if (first == 100 && second in 64..127) return true
+            if (first == 192 && second == 0) return true
+            if (first == 198 && second in 18..19) return true
+        } else if (bytes.size == 16) {
+            // IPv6 unique-local addresses (fc00::/7).
+            if ((bytes[0].toInt() and 0xfe) == 0xfc) return true
+        }
+        return false
+    }
+
+    private fun effectiveTimeout(requestValue: Long?): Long? = listOfNotNull(networkPolicy.requestTimeoutMillis, requestValue).minOrNull()
+    private fun effectiveConnectTimeout(requestValue: Long?): Long? = listOfNotNull(networkPolicy.connectTimeoutMillis, requestValue).minOrNull()
+    private fun effectiveRequestTimeout(requestValue: Long?): Long? = listOfNotNull(networkPolicy.requestTimeoutMillis, requestValue).minOrNull()
+    private fun effectiveReadTimeout(requestValue: Long?): Long? = listOfNotNull(networkPolicy.readTimeoutMillis, requestValue).minOrNull()
+
+    private fun mapNetworkError(error: Throwable, url: String): NetworkException = when (error) {
+        is NetworkException -> error
+        is HttpRequestTimeoutException -> NetworkTimeoutException(null, NetworkTimeoutPhase.REQUEST, error)
+        is ConnectTimeoutException -> NetworkTimeoutException(null, NetworkTimeoutPhase.CONNECT, error)
+        is java.net.SocketTimeoutException -> NetworkTimeoutException(null, NetworkTimeoutPhase.READ, error)
+        is UnknownHostException -> NetworkDnsException(try { URI(url).host } catch (_: Throwable) { null }, error)
+        is SSLException, is CertificateException -> NetworkTlsException(cause = error)
+        is ConnectException -> NetworkConnectionException(cause = error)
+        is IOException -> NetworkConnectionException(cause = error)
+        is IllegalArgumentException -> NetworkPolicyException(NetworkPolicyViolation.INVALID_REQUEST, error.message ?: "Invalid request", error)
+        else -> NetworkConnectionException(cause = error)
     }
 
     override val preferences: PluginPreferences = object : PluginPreferences {
