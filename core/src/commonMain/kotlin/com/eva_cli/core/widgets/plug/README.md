@@ -119,7 +119,7 @@ chat-plugin-1.0.0.eva
 
 `formatVersion` 表示包格式版本，`apiVersion` 表示宿主插件接口版本，
 `version` 表示插件自身的发布版本。插件 ID 在升级时保持稳定。
-当前宿主 API 版本为 `4`，包格式版本仍为 `1`。API 4 在 `Event.Metadata` 增加目标 topic；API 3 在 `Widget` 增加 `context` 和
+当前宿主 API 版本为 `4`，包格式版本仍为 `1`。API 3 在 `Widget` 增加 `context` 和
 `attach(context)`，由 `BaseWidget` 提供一次绑定实现，宿主在生命周期调用前绑定插件能力。
 API 2 插件须更新 SDK 后重新编译、打包并修改清单；直接实现 `Widget` 的组件须补齐这两个成员。
 API 1 还须将 Provider 的 `start/stop` 改为挂起函数，并将 Dispatcher 的 `feedUp` 改为 `emit`。

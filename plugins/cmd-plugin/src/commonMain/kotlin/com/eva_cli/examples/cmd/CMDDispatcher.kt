@@ -46,7 +46,7 @@ class CMDDispatcher : PluginDispatcher() {
                     commandPort.write(TextEvent("Usage: echo <text>"))
                 } else {
                     commandPort.submitEvent(
-                        TextEvent(argument, metadata = Event.Metadata(targetTopic = "/Echo")),
+                        TextEvent(argument),
                     )
                 }
             }

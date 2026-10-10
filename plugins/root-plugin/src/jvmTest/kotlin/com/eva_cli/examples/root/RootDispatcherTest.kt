@@ -3,67 +3,78 @@ package com.eva_cli.examples.root
 import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.provider.PluginProvider
+import com.eva_cli.core.widgets.provider.Provider
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 import kotlinx.coroutines.runBlocking
 import kotlin.uuid.Uuid
 
 class RootDispatcherTest {
     @Test
-    fun usesEchoAsTheDefaultDestination() = runBlocking {
+    fun broadcastsInboundEventsToEveryChildExceptTheReportingDispatcher() = runBlocking {
         val root = RootDispatcher()
         val echo = RecordingDispatcher("/Echo")
+        val other = RecordingDispatcher("/Other")
+        val command = RecordingDispatcher("/CMD")
         root.dispatchers[echo.id] = echo
+        root.dispatchers[other.id] = other
+        root.dispatchers[command.id] = command
 
         val event = TestEvent()
         root.dispatch(event)
 
         assertSame(event, echo.received)
+        assertSame(event, other.received)
+        assertEquals(null, command.received)
     }
 
     @Test
-    fun routesAnExplicitDestinationWithoutBroadcasting() = runBlocking {
+    fun excludesTheChildThatOwnsTheReportingProvider() = runBlocking {
         val root = RootDispatcher()
-        val echo = RecordingDispatcher("/Echo")
-        val command = RecordingDispatcher("/CMD")
-        root.dispatchers[echo.id] = echo
-        root.dispatchers[command.id] = command
+        val reporter = RecordingDispatcher("/Reporter")
+        val peer = RecordingDispatcher("/Peer")
+        val provider = RecordingProvider()
+        reporter.providers[provider.id] = provider
+        root.dispatchers[reporter.id] = reporter
+        root.dispatchers[peer.id] = peer
 
-        val event = TestEvent(Event.Metadata(targetTopic = "/CMD"))
+        val event = TestEvent(Event.Metadata(providerId = provider.id))
         root.dispatch(event)
 
-        assertSame(event, command.received)
-        assertEquals(null, echo.received)
+        assertEquals(null, reporter.received)
+        assertSame(event, peer.received)
     }
 
     @Test
-    fun rejectsAnUnknownDestination() = runBlocking {
+    fun forwardsReportedEventsToTheHostOutput() = runBlocking {
         val root = RootDispatcher()
-        val echo = RecordingDispatcher("/Echo")
-        root.dispatchers[echo.id] = echo
+        val output = mutableListOf<Event>()
+        root.emit = { output += it }
 
-        val error = assertFailsWith<IllegalStateException> {
-            root.dispatch(TestEvent(Event.Metadata(targetTopic = "/Missing")))
-        }
+        val event = TestEvent()
+        root.receive(event)
 
-        assertEquals(true, error.message.orEmpty().contains("/Missing"))
+        assertEquals(1, output.size)
+        assertSame(event, output.single())
     }
 
     @Test
-    fun rejectsAnAmbiguousDestination() = runBlocking {
+    fun broadcastsReportedEventsToSiblingDispatchers() = runBlocking {
         val root = RootDispatcher()
-        val first = RecordingDispatcher("/Echo")
-        val second = RecordingDispatcher("/Echo")
-        root.dispatchers[first.id] = first
-        root.dispatchers[second.id] = second
+        val reporter = RecordingDispatcher("/Reporter")
+        val peer = RecordingDispatcher("/Peer")
+        val provider = RecordingProvider()
+        reporter.providers[provider.id] = provider
+        root.dispatchers[reporter.id] = reporter
+        root.dispatchers[peer.id] = peer
 
-        val error = assertFailsWith<IllegalStateException> {
-            root.dispatch(TestEvent())
-        }
+        val event = TestEvent(Event.Metadata(providerId = provider.id))
+        root.receive(event)
 
-        assertEquals(true, error.message.orEmpty().contains("found 2"))
+        assertEquals(null, reporter.received)
+        assertSame(event, peer.received)
     }
 
     private class RecordingDispatcher(override val topic: String) : PluginDispatcher() {
@@ -78,6 +89,19 @@ class RootDispatcherTest {
         override suspend fun receive(event: Event) {
             received = event
         }
+    }
+
+    private class RecordingProvider : PluginProvider() {
+        override val id: Uuid = Uuid.random()
+        override val name = "Recording Provider"
+        override val desc = "Test provider"
+        override val topic = "/Reporter"
+        override var enable = true
+        override var status = Provider.Status.IDLE
+        override var records: List<EventRecord> = emptyList()
+        override var emit: (suspend (event: Event) -> Unit)? = null
+
+        override suspend fun receive(event: Event) = Unit
     }
 
     private class TestEvent(

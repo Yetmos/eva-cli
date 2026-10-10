@@ -3,47 +3,41 @@ package com.eva_cli.examples.root
 import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
 import com.eva_cli.core.widgets.event.Event
 
-/**
- * The system root for the plugin tree.
- *
- * Events without an explicit destination use [DEFAULT_TARGET_TOPIC]. An explicit
- * destination must resolve to exactly one child dispatcher. This keeps input
- * routing deterministic when output dispatchers such as `/CMD` are loaded too.
- */
+/** The system root for the plugin tree. */
 class RootDispatcher : PluginDispatcher() {
     override val name = "Root Dispatcher"
-    override val desc = "Routes events to a plugin dispatcher"
+    override val desc = "Routes events to child dispatchers"
     override val topic = "/"
-
-    private var defaultTargetTopic = DEFAULT_TARGET_TOPIC
-
-    override suspend fun start() {
-        defaultTargetTopic = context.preferences.get(DEFAULT_TARGET_PREFERENCE)
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: DEFAULT_TARGET_TOPIC
-        super.start()
-    }
 
     override suspend fun dispatch(event: Event) {
         if (!enable) return
 
-        val targetTopic = event.metadata.targetTopic ?: defaultTargetTopic
-        val targets = dispatchers.values.filter { it.topic == targetTopic }
-        check(targets.size == 1) {
-            "RootDispatcher target topic=$targetTopic requires exactly one child Dispatcher; " +
-                "found ${targets.size}"
-        }
-        targets.single().dispatch(event)
+        dispatchToChildren(event)
     }
 
     override suspend fun receive(event: Event) {
         if (!enable) return
-        checkNotNull(emit) { "Bind RootDispatcher.emit before receiving events" }(event)
+        if (!dispatchToChildren(event)) {
+            checkNotNull(emit) { "Bind RootDispatcher.emit before receiving events" }(event)
+        }
+    }
+
+    private suspend fun dispatchToChildren(event: Event): Boolean {
+        val reportingProviderId = event.metadata.providerId
+        val targets = dispatchers.values.filterNot { dispatcher ->
+            (reportingProviderId == null && dispatcher.topic == REPORTING_TOPIC) ||
+                reportingProviderId?.let { providerId ->
+                    dispatcher.providers.values.any { provider -> provider.id == providerId }
+                } == true
+        }
+        targets.forEach { dispatcher ->
+            dispatcher.dispatch(event)
+        }
+        return targets.isNotEmpty()
     }
 
     private companion object {
-        const val DEFAULT_TARGET_TOPIC = "/Echo"
-        const val DEFAULT_TARGET_PREFERENCE = "eva.root.defaultTopic"
+        /** The command dispatcher is the host's default event reporting endpoint. */
+        const val REPORTING_TOPIC = "/CMD"
     }
 }
