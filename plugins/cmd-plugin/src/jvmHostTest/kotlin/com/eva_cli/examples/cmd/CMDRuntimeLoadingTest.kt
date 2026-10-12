@@ -1,7 +1,7 @@
 package com.eva_cli.examples.cmd
 
+import com.eva_cli.cmd.api.CommandLinePort
 import com.eva_cli.core.Eva
-import com.eva_cli.core.widgets.context.CommandLinePort
 import com.eva_cli.core.widgets.plug.PluginSource
 import com.eva_cli.core.widgets.plug.PlugManager
 import java.nio.file.Files

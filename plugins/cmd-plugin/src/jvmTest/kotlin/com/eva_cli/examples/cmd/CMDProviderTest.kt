@@ -1,7 +1,5 @@
 package com.eva_cli.examples.cmd
 
-import com.eva_cli.core.widgets.event.Event
-import com.eva_cli.core.widgets.event.TextEvent
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,7 +16,7 @@ class CMDProviderTest {
         provider.start()
 
         provider.submit("echo hello")
-        provider.write(TextEvent("Echo: hello"))
+        provider.write("Echo: hello")
 
         assertEquals(listOf("echo hello"), inputs)
         assertEquals(listOf("Echo: hello"), outputs)
@@ -34,7 +32,7 @@ class CMDProviderTest {
         provider.stop()
 
         provider.submit("echo hello")
-        provider.write(TextEvent("Echo: hello"))
+        provider.write("Echo: hello")
 
         assertTrue(outputs.isEmpty())
     }

@@ -207,7 +207,11 @@ private fun validateClasspathJar(path: Path) {
 private class PluginClassLoader(urls: Array<URL>) : URLClassLoader(urls, PluginEntry::class.java.classLoader) {
     override fun loadClass(name: String, resolve: Boolean): Class<*> = synchronized(getClassLoadingLock(name)) {
         val loaded = findLoadedClass(name) ?: if (sharedPackages.any { name.startsWith(it) }) {
-            super.loadClass(name, false)
+            try {
+                super.loadClass(name, false)
+            } catch (_: ClassNotFoundException) {
+                findClass(name)
+            }
         } else {
             try {
                 findClass(name)
@@ -232,6 +236,8 @@ private class PluginClassLoader(urls: Array<URL>) : URLClassLoader(urls, PluginE
         private val sharedPackages = listOf(
             "java.", "javax.", "jdk.", "sun.", "com.sun.",
             "org.w3c.dom.", "org.xml.sax.", "kotlin.", "kotlinx.", "com.eva_cli.core.",
+            // Optional plugin host APIs are shared when a host provides them.
+            "com.eva_cli.cmd.api.",
         )
     }
 }

@@ -1,7 +1,6 @@
 package com.eva_cli.core.runtime
 
 import com.eva_cli.core.widgets.dispatcher.Dispatcher
-import com.eva_cli.core.widgets.context.CommandLinePort
 import com.eva_cli.core.widgets.plug.PlugManager
 
 // INFO: 该组件只负责启动 RootDispatcher, RootDispatcher负责启动Dispatcher树，不具备任何事件调度能力
@@ -22,26 +21,6 @@ object Booter {
         }
         val dispatcher = roots.single()
         root = dispatcher
-        val commandOutputs = PlugManager.loadedList.flatMap { plugin ->
-            plugin.dispatchers.filter { it.topic == "/CMD" }
-        }
-        check(commandOutputs.size <= 1) {
-            "已加载插件中最多只能有一个 /CMD Dispatcher，实际找到 ${commandOutputs.size} 个"
-        }
-        val commandPorts = PlugManager.loadedList.flatMap { plugin ->
-            plugin.providers.filterIsInstance<CommandLinePort>()
-        }
-        check(commandPorts.size <= 1) {
-            "已加载插件中最多只能有一个 CommandLinePort，实际找到 ${commandPorts.size} 个"
-        }
-        check(commandOutputs.size == commandPorts.size) {
-            " /CMD Dispatcher 与 CommandLinePort 必须成对提供，实际为 " +
-                "${commandOutputs.size} 个 Dispatcher、${commandPorts.size} 个 Port"
-        }
-        dispatcher.emit = commandOutputs.singleOrNull()?.let { command ->
-            command::dispatch
-        }
-        commandPorts.singleOrNull()?.bindEventSubmit(dispatcher::dispatch)
         dispatcher.start()
     }
 
@@ -50,10 +29,6 @@ object Booter {
         try {
             dispatcher.stop()
         } finally {
-            PlugManager.loadedList.flatMap { plugin ->
-                plugin.providers.filterIsInstance<CommandLinePort>()
-            }.singleOrNull()?.bindEventSubmit(null)
-            dispatcher.emit = null
             root = null
         }
     }

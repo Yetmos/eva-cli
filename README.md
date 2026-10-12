@@ -19,9 +19,10 @@ API 源码快照和 JVM 产物的发布包；解压后可以独立构建和重�
 | 模块 | 职责与依赖 |
 | --- | --- |
 | `core` | KMP 核心代码与数据模型，提供 JVM、Android、iOS targets，无 UI 依赖 |
-| `cli` | JVM application 入口，依赖 `core`，处理命令行参数与输出 |
+| `cli` | JVM application 入口，依赖 `core` 和 CMD 宿主端口 API，处理命令行参数与输出 |
 | `plugins/root-plugin` | 系统根插件，提供唯一 `topic="/"` 的 Root Dispatcher |
 | `plugins/echo-plugin` | KMP 插件示例，当前提供 JVM target，依赖 `core` 的插件 API |
+| `plugins/cmd-plugin-api` | CMD 插件的轻量宿主端口 API |
 | `plugins/cmd-plugin` | KMP 命令行适配插件，提供 `/CMD` Dispatcher、Provider 和 `.eva` 打包任务 |
 
 核心入口面向 JVM、Android 和 iOS 共用；CLI 通过 JVM target 使用它。
@@ -85,8 +86,9 @@ jpackage \
 也可以改用系统支持的 `dmg`、`pkg`、`deb`、`rpm`、`msi` 或 `exe` 安装包类型。
 不同操作系统需要分别打包。
 
-CLI 本身不包含插件。运行 `eva cmd` 前，需要先安装 Root、CMD 等所需插件；插件的
-`.eva` 发布包构建方式见 [插件开发](plugins/echo-plugin/README.md)。
+运行 `eva cmd` 前，需要先安装 Root、CMD 等所需插件；插件的 `.eva` 发布包构建方式见
+[插件开发](plugins/echo-plugin/README.md)。CLI 通过 `cmd-plugin-api` 提供的
+`CommandLinePort` 绑定宿主的 stdin/stdout。
 
 ## 许可证
 

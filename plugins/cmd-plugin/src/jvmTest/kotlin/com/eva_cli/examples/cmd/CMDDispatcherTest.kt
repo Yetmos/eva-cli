@@ -14,7 +14,7 @@ class CMDDispatcherTest {
         dispatcher.providers[provider.id] = provider
         provider.start()
         val submitted = mutableListOf<Event>()
-        provider.bindEventSubmit { submitted += it }
+        dispatcher.emit = { submitted += it }
 
         dispatcher.receive(TextEvent("echo hello world"))
 

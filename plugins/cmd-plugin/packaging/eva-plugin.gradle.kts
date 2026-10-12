@@ -3,7 +3,12 @@ import org.apache.tools.ant.filters.ReplaceTokens
 val pluginDirectory = layout.buildDirectory.dir("plugin")
 val stagingDirectory = layout.buildDirectory.dir("eva-staging")
 val coreProject = rootProject.findProject(":core")
+val cmdApiProject = rootProject.findProject(":plugins:cmd-plugin-api")
+val standaloneApiProject = project.findProject(":plugin-api")
 val apiSourceDirectory = coreProject
+    ?.layout?.projectDirectory?.dir("src/commonMain/kotlin")
+    ?: layout.projectDirectory.dir("sdk/plugin-api/src/commonMain/kotlin")
+val cmdApiSourceDirectory = cmdApiProject
     ?.layout?.projectDirectory?.dir("src/commonMain/kotlin")
     ?: layout.projectDirectory.dir("sdk/plugin-api/src/commonMain/kotlin")
 
@@ -20,6 +25,21 @@ val prepareJvmPlugin = tasks.register<Sync>("prepareJvmPlugin") {
     from(tasks.named<Jar>("jvmJar").flatMap { it.archiveFile }) {
         into("prebuilt/jvm")
         rename { "plugin.jar" }
+    }
+    if (cmdApiProject != null) {
+        dependsOn(":plugins:cmd-plugin-api:jvmJar")
+        from(cmdApiProject.layout.buildDirectory.dir("libs")) {
+            include("cmd-plugin-api-jvm-*.jar")
+            into("prebuilt/jvm/lib")
+            rename { "cmd-plugin-api.jar" }
+        }
+    } else if (standaloneApiProject != null) {
+        dependsOn(":plugin-api:jvmJar")
+        from(standaloneApiProject.layout.buildDirectory.dir("libs")) {
+            include("plugin-api-jvm-*.jar")
+            into("prebuilt/jvm/lib")
+            rename { "cmd-plugin-api.jar" }
+        }
     }
 }
 
@@ -72,6 +92,10 @@ val stageEvaPlugin = tasks.register<Sync>("stageEvaPlugin") {
             // 独立工程保留随包提供的查询编译入口，不复制宿主安装器和加载器。
             include("com/eva_cli/core/widgets/plug/PlugManager.kt")
         }
+        into("sdk/plugin-api/src/commonMain/kotlin")
+    }
+    from(cmdApiSourceDirectory) {
+        include("com/eva_cli/cmd/api/CommandLinePort.kt")
         into("sdk/plugin-api/src/commonMain/kotlin")
     }
 }

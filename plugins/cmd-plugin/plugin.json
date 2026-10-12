@@ -8,6 +8,7 @@
     "jvm": {
       "artifact": "prebuilt/jvm/plugin.jar",
       "entryClass": "com.eva_cli.examples.cmd.CMDPlugin",
+      "dependencies": "prebuilt/jvm/lib",
       "minJavaVersion": 17
     }
   }

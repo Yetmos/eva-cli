@@ -16,8 +16,10 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":core"))
+            implementation(project(":plugins:cmd-plugin-api"))
         }
         jvmTest.dependencies {
+            implementation(project(":plugins:cmd-plugin-api"))
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.core)
         }

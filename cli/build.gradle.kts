@@ -18,6 +18,7 @@ java {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":plugins:cmd-plugin-api"))
 }
 
 application {

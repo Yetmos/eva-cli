@@ -8,7 +8,7 @@ stdin -> CMDProvider -> CMDDispatcher -> Eva -> /Echo -> EchoProvider
 stdout <- CMDProvider <- CMDDispatcher <- RootDispatcher
 ```
 
-宿主通过 `CommandLinePort` 绑定实际的 stdin/stdout。插件不直接持有全局输入输出流，
+宿主通过 `com.eva_cli.cmd.api.CommandLinePort` 绑定实际的 stdin/stdout。插件不直接持有全局输入输出流，
 因此可以被 CLI、测试或其他命令行宿主复用。
 
 当前支持：

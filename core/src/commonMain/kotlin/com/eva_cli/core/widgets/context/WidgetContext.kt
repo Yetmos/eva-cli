@@ -58,12 +58,7 @@ data class NetworkRequest(
     val allowInsecureHttp: Boolean = true,
     val allowedHosts: Set<String> = emptySet(),
     val allowPrivateAddresses: Boolean = true,
-) {
-    /** Binary-compatible constructor retained for API 4 plugins. */
-    constructor(url: String, method: String, headers: Map<String, String>, body: ByteArray?) : this(
-        url, method, headers, body, false, null, null, null, null, null, true, 5, true, false, true, emptySet(), true,
-    )
-}
+)
 
 data class NetworkResponse(
     val status: Int,
@@ -73,11 +68,6 @@ data class NetworkResponse(
     val redirectCount: Int = 0,
     val contentLength: Long? = null,
 ) {
-    /** Binary-compatible constructor retained for API 4 plugins. */
-    constructor(status: Int, headers: Map<String, List<String>>, body: ByteArray) : this(
-        status, headers, body, "", 0, null,
-    )
-
     val isSuccessful: Boolean get() = status in 200..299
 }
 

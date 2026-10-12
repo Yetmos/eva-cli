@@ -98,12 +98,7 @@ internal class JvmWidgetContext(
             )
 
         override suspend fun execute(request: NetworkRequest): NetworkResponse = withinLifetime {
-            acquireNetworkPermit()
-            try {
-                performNetworkRequest(request, stream = null)
-            } finally {
-                networkPermits.release()
-            }
+            performNetworkRequest(request, stream = null)
         }
 
         override suspend fun download(
@@ -111,31 +106,36 @@ internal class JvmWidgetContext(
             onChunk: suspend (ByteArray) -> Unit,
         ): NetworkResponse = withinLifetime {
             requireNotNull(onChunk) { "onChunk" }
-            acquireNetworkPermit()
-            try {
-                performNetworkRequest(request, stream = onChunk)
-            } finally {
-                networkPermits.release()
-            }
+            performNetworkRequest(request, stream = onChunk)
         }
     }
 
-    private suspend fun acquireNetworkPermit() {
-        if (networkPolicy.maxRequestsPerMinute != null) {
-            while (true) {
-                val wait = synchronized(rateLock) {
-                    val now = System.currentTimeMillis()
-                    trimRateWindow(now)
-                    if (minuteWindow.size < networkPolicy.maxRequestsPerMinute) {
-                        minuteWindow.addLast(now)
-                        0L
-                    } else 1_000L
-                }
-                if (wait == 0L) break
-                kotlinx.coroutines.delay(wait)
-            }
-        }
+    private suspend fun <T> withNetworkPermit(block: suspend () -> T): T {
         networkPermits.acquire()
+        try {
+            reserveRequestRateSlot()
+            return block()
+        } finally {
+            networkPermits.release()
+        }
+    }
+
+    private suspend fun reserveRequestRateSlot() {
+        val limit = networkPolicy.maxRequestsPerMinute ?: return
+        while (true) {
+            val available = synchronized(rateLock) {
+                val now = System.currentTimeMillis()
+                trimRateWindow(now)
+                if (minuteWindow.size < limit) {
+                    minuteWindow.addLast(now)
+                    true
+                } else {
+                    false
+                }
+            }
+            if (available) return
+            kotlinx.coroutines.delay(1_000L)
+        }
     }
 
     private fun trimRateWindow(now: Long) {
@@ -146,6 +146,7 @@ internal class JvmWidgetContext(
 
     private fun consumeBytesQuota(bytes: Long) {
         val limit = networkPolicy.maxBytesPerMinute ?: return
+        if (bytes <= 0) return
         synchronized(rateLock) {
             val now = System.currentTimeMillis()
             trimRateWindow(now)
@@ -166,10 +167,13 @@ internal class JvmWidgetContext(
     ): NetworkResponse {
         val requestTimeout = effectiveTimeout(initial.requestTimeoutMillis) ?: Long.MAX_VALUE
         return try {
+            initial.validate(networkPolicy)
             if (requestTimeout == Long.MAX_VALUE) {
-                performNetworkRequestUnbounded(initial, stream)
+                withNetworkPermit { performNetworkRequestUnbounded(initial, stream) }
             } else {
-                withTimeoutOrNull(requestTimeout) { performNetworkRequestUnbounded(initial, stream) }
+                withTimeoutOrNull(requestTimeout) {
+                    withNetworkPermit { performNetworkRequestUnbounded(initial, stream) }
+                }
                     ?: throw NetworkTimeoutException(requestTimeout, NetworkTimeoutPhase.REQUEST)
             }
         } catch (error: NetworkTimeoutException) {
@@ -194,13 +198,7 @@ internal class JvmWidgetContext(
         initial: NetworkRequest,
         stream: (suspend (ByteArray) -> Unit)?,
     ): NetworkResponse {
-        initial.validate(networkPolicy)
         val requestLimit = listOfNotNull(networkPolicy.maxRequestBytes, initial.maxRequestBytes).minOrNull()
-        val sent = initial.body?.size?.toLong() ?: 0L
-        if (requestLimit != null && sent > requestLimit) throw NetworkRequestTooLargeException(requestLimit, sent, null)
-        consumeBytesQuota(sent)
-        sentBytes.addAndGet(sent)
-        requestCount.incrementAndGet()
 
         var currentUrl = initial.url
         var method = initial.method
@@ -209,6 +207,12 @@ internal class JvmWidgetContext(
         var credentialsAllowed = true
         while (true) {
             validateNetworkUrl(currentUrl, initial)
+            val sent = body?.size?.toLong() ?: 0L
+            if (requestLimit != null && sent > requestLimit) throw NetworkRequestTooLargeException(requestLimit, sent, null)
+            consumeBytesQuota(sent)
+            if (redirectCount > 0) reserveRequestRateSlot()
+            sentBytes.addAndGet(sent)
+            requestCount.incrementAndGet()
             val http = synchronized(lock) {
                 requireOpen()
                 client ?: HttpClient(OkHttp) {
@@ -238,7 +242,8 @@ internal class JvmWidgetContext(
                 }
             }
             val status = response.status.value
-            if (status in 300..399 && initial.followRedirects && networkPolicy.followRedirects) {
+            val redirectStatus = status == 301 || status == 302 || status == 303 || status == 307 || status == 308
+            if (redirectStatus && initial.followRedirects && networkPolicy.followRedirects) {
                 val location = response.headers["Location"]
                 if (!location.isNullOrBlank()) {
                     if (redirectCount >= minOf(initial.maxRedirects, networkPolicy.maxRedirects)) {
@@ -250,28 +255,34 @@ internal class JvmWidgetContext(
                     val newUri = URI(nextUrl)
                     val oldHost = oldUri.host?.lowercase(Locale.ROOT)
                     val newHost = newUri.host?.lowercase(Locale.ROOT)
+                    val originChanged = !sameOrigin(oldUri, newUri)
                     val secureDowngrade = oldUri.scheme.equals("https", true) && newUri.scheme.equals("http", true)
+                    if (secureDowngrade) {
+                        response.bodyAsChannel().cancel(IllegalStateException("insecure redirect"))
+                        throw NetworkPolicyException(
+                            NetworkPolicyViolation.INSECURE_HTTP,
+                            "HTTPS to HTTP redirects are disabled",
+                        )
+                    }
                     if (oldHost != newHost && (!initial.allowCrossHostRedirects || !networkPolicy.allowCrossHostRedirects)) {
                         response.bodyAsChannel().cancel(IllegalStateException("cross-host redirect"))
                         throw NetworkPolicyException(NetworkPolicyViolation.HOST_NOT_ALLOWED, "Cross-host redirects are disabled")
                     }
                     currentUrl = nextUrl
                     redirectCount++
-                    if (oldHost != newHost) {
+                    if (originChanged && oldHost == newHost) {
+                        // Never send credentials to a changed origin without an explicit
+                        // cross-host opt-in. HTTPS downgrades are rejected above.
+                        credentialsAllowed = false
+                    } else if (oldHost != newHost) {
                         // Once credentials are stripped, they must not be reintroduced by a
                         // later redirect hop (for example after an HTTPS downgrade).
                         credentialsAllowed = credentialsAllowed &&
                             initial.preserveSensitiveHeadersOnRedirect &&
                             networkPolicy.preserveSensitiveHeadersOnRedirect
-                    } else if (secureDowngrade) {
-                        // Never send credentials from HTTPS over a plaintext downgrade.
-                        credentialsAllowed = false
-                        // RFC 9110 allows changing method for 301/302/303; credentials are removed above.
-                        if (status == 301 || status == 302 || status == 303) {
-                            method = "GET"
-                            body = null
-                        }
-                    } else if (status == 301 || status == 302 || status == 303) {
+                    }
+                    if (status == 301 || status == 302 || status == 303) {
+                        // RFC 9110 allows changing method for 301/302/303.
                         method = "GET"
                         body = null
                     }
@@ -378,6 +389,18 @@ internal class JvmWidgetContext(
             if ((bytes[0].toInt() and 0xfe) == 0xfc) return true
         }
         return false
+    }
+
+    private fun sameOrigin(first: URI, second: URI): Boolean {
+        if (!first.scheme.equals(second.scheme, true)) return false
+        if (!first.host.equals(second.host, true)) return false
+        return effectivePort(first) == effectivePort(second)
+    }
+
+    private fun effectivePort(uri: URI): Int = when {
+        uri.port >= 0 -> uri.port
+        uri.scheme.equals("https", true) -> 443
+        else -> 80
     }
 
     private fun effectiveTimeout(requestValue: Long?): Long? = listOfNotNull(networkPolicy.requestTimeoutMillis, requestValue).minOrNull()

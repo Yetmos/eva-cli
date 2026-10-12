@@ -337,6 +337,48 @@ class JvmWidgetContextTest {
     }
 
     @Test
+    fun networkStripsCredentialsWhenRedirectChangesPort() = withRuntime { root, plugin ->
+        val target = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        target.createContext("/target") { exchange ->
+            val body = (exchange.requestHeaders.getFirst("Authorization") ?: "missing").encodeToByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        target.start()
+        val redirect = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        redirect.createContext("/redirect") { exchange ->
+            exchange.responseHeaders.add("Location", "http://127.0.0.1:${target.address.port}/target")
+            exchange.sendResponseHeaders(302, -1)
+            exchange.close()
+        }
+        redirect.start()
+        val host = context(
+            root,
+            plugin,
+            networkPolicy = PluginNetworkPolicy(
+                allowPrivateAddresses = true,
+                preserveSensitiveHeadersOnRedirect = true,
+            ),
+        )
+        try {
+            runBlocking {
+                val response = host.network.execute(
+                    NetworkRequest(
+                        "http://127.0.0.1:${redirect.address.port}/redirect",
+                        headers = mapOf("Authorization" to "secret"),
+                        preserveSensitiveHeadersOnRedirect = true,
+                    ),
+                )
+                assertContentEquals("missing".encodeToByteArray(), response.body)
+            }
+        } finally {
+            host.close()
+            redirect.stop(0)
+            target.stop(0)
+        }
+    }
+
+    @Test
     fun networkAppliesTimeoutAndByteRateLimit() = withRuntime { root, plugin ->
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/slow") { exchange ->
@@ -365,6 +407,79 @@ class JvmWidgetContextTest {
                 assertFailsWith<NetworkPolicyException> {
                     host.network.execute(NetworkRequest("$base/quota"))
                 }.also { assertEquals(NetworkPolicyViolation.BYTE_RATE_LIMIT, it.violation) }
+            }
+        } finally {
+            host.close()
+            server.stop(0)
+        }
+    }
+
+    @Test
+    fun invalidRequestDoesNotConsumeRequestRateQuota() = withRuntime { root, plugin ->
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/ok") { exchange ->
+            val body = "ok".encodeToByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.start()
+        val host = context(
+            root,
+            plugin,
+            networkPolicy = PluginNetworkPolicy(
+                maxRequestsPerMinute = 1,
+                allowPrivateAddresses = true,
+            ),
+        )
+        try {
+            runBlocking {
+                assertFailsWith<NetworkPolicyException> {
+                    host.network.execute(NetworkRequest("ftp://example.test/file"))
+                }
+                val response = withTimeout(2_000) {
+                    host.network.execute(NetworkRequest("http://127.0.0.1:${server.address.port}/ok"))
+                }
+                assertEquals(200, response.status)
+            }
+        } finally {
+            host.close()
+            server.stop(0)
+        }
+    }
+
+    @Test
+    fun redirectHopsConsumeRequestRateQuota() = withRuntime { root, plugin ->
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/redirect") { exchange ->
+            exchange.responseHeaders.add("Location", "/target")
+            exchange.sendResponseHeaders(302, -1)
+            exchange.close()
+        }
+        server.createContext("/target") { exchange ->
+            val body = "target".encodeToByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.start()
+        val host = context(
+            root,
+            plugin,
+            networkPolicy = PluginNetworkPolicy(
+                maxRequestsPerMinute = 1,
+                allowPrivateAddresses = true,
+            ),
+        )
+        try {
+            runBlocking {
+                assertFailsWith<NetworkTimeoutException> {
+                    host.network.execute(
+                        NetworkRequest(
+                            "http://127.0.0.1:${server.address.port}/redirect",
+                            requestTimeoutMillis = 100,
+                        ),
+                    )
+                }
+                assertEquals(1, host.network.metrics.totalRequests)
             }
         } finally {
             host.close()
