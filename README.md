@@ -62,7 +62,7 @@ cli/build/install/eva/
 ```
 
 产物位于 `cli/build/distributions/`，文件名类似
-`eva-0.1.0-alpha.zip` 和 `eva-0.1.0-alpha.tar`。解压后从发行目录的
+`eva-1.0.0-alpha.zip` 和 `eva-1.0.0-alpha.tar`。解压后从发行目录的
 `bin/eva`（macOS/Linux）或 `bin/eva.bat`（Windows）启动即可。这种发行包不是单个
 native 二进制文件，运行时需要 Java 17 或更高版本。
 
@@ -76,7 +76,7 @@ jpackage \
   --name eva \
   --app-version 1.0.0 \
   --input cli/build/install/eva/lib \
-  --main-jar cli-0.1.0-alpha.jar \
+  --main-jar cli-1.0.0-alpha.jar \
   --main-class com.eva_cli.MainKt \
   --dest cli/build/jpackage
 ```

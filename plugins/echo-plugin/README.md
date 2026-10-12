@@ -33,7 +33,7 @@ Windows PowerShell 使用 `.\gradlew.bat :plugins:echo-plugin:assembleEvaPlugin`
 该任务编译插件、组装独立工程、运行 Provider 行为和实际 JAR 加载测试，再生成：
 
 ```text
-plugins/echo-plugin/build/distributions/echo-plugin-0.1.0-alpha.eva
+plugins/echo-plugin/build/distributions/echo-plugin-1.0.0-alpha.eva
 ```
 
 `.eva` 是 ZIP 文件，解压后根目录为：

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "com.eva_cli.cmd",
   "name": "CMD Plugin",
-  "version": "0.1.0-alpha",
+  "version": "1.0.0-alpha",
   "apiVersion": 5,
   "platforms": {
     "jvm": {
