@@ -1,0 +1,128 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "435fe094a9896dfb242982f4be6fe8cb",
+    "entities": [
+      {
+        "tableName": "widget_records",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`component_id` TEXT NOT NULL, `component_kind` TEXT NOT NULL, `record_id` TEXT NOT NULL, `event_id` TEXT NOT NULL, `occurred_at` TEXT NOT NULL, `actor_id` TEXT NOT NULL, `actor_kind` TEXT NOT NULL, `action_type` TEXT NOT NULL, `dispatch_type` TEXT, `target_id` TEXT, `target_kind` TEXT, `reason` TEXT, `result` TEXT, `detail` TEXT, PRIMARY KEY(`component_id`, `component_kind`, `record_id`))",
+        "fields": [
+          {
+            "fieldPath": "componentId",
+            "columnName": "component_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "componentKind",
+            "columnName": "component_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordId",
+            "columnName": "record_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventId",
+            "columnName": "event_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "occurredAt",
+            "columnName": "occurred_at",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "actorId",
+            "columnName": "actor_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "actorKind",
+            "columnName": "actor_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "actionType",
+            "columnName": "action_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dispatchType",
+            "columnName": "dispatch_type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "targetId",
+            "columnName": "target_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "targetKind",
+            "columnName": "target_kind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "result",
+            "columnName": "result",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "detail",
+            "columnName": "detail",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "component_id",
+            "component_kind",
+            "record_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_widget_records_component_id_component_kind_occurred_at_record_id",
+            "unique": false,
+            "columnNames": [
+              "component_id",
+              "component_kind",
+              "occurred_at",
+              "record_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_widget_records_component_id_component_kind_occurred_at_record_id` ON `${TABLE_NAME}` (`component_id`, `component_kind`, `occurred_at`, `record_id`)"
+          },
+          {
+            "name": "index_widget_records_event_id",
+            "unique": false,
+            "columnNames": [
+              "event_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_widget_records_event_id` ON `${TABLE_NAME}` (`event_id`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '435fe094a9896dfb242982f4be6fe8cb')"
+    ]
+  }
+}

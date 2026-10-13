@@ -5,8 +5,10 @@ import com.eva_cli.core.widgets.context.UnavailablePluginPermissions
 import com.eva_cli.core.widgets.dispatcher.BaseDispatcher
 import com.eva_cli.core.widgets.event.Action
 import com.eva_cli.core.widgets.event.ComponentRef
+import com.eva_cli.core.widgets.event.DispatchType
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.event.RecordsStore
 import com.eva_cli.core.widgets.event.Result
 import com.eva_cli.core.widgets.provider.BaseProvider
 import java.nio.file.Files
@@ -21,46 +23,51 @@ import kotlin.uuid.Uuid
 
 class RecordsStoreJvmTest {
     @Test
-    fun providerAndDispatcherBackupsRoundTripAndUseSeparateFiles() = withRuntime { root, plugin ->
-        val providerId = Uuid.random()
-        val dispatcherId = Uuid.random()
-        val provider = TestProvider(providerId)
-        val dispatcher = TestDispatcher(dispatcherId)
-        val providerRecord = EventRecord(
-            eventId = Uuid.random(),
-            occurredAt = Instant.parse("2026-01-02T03:04:05Z"),
-            actor = ComponentRef(providerId, ComponentRef.Kind.PROVIDER),
-            action = Action.Handle(Result.DONE, "provider"),
-        )
+    fun writesAndReadsRoomRecordsWithProviderDispatcherIsolation() = withRuntime { root, plugin ->
+        val componentId = uuid(1)
+        val providerRecord = record(componentId, ComponentRef.Kind.PROVIDER, 1)
         val dispatcherRecord = EventRecord(
-            eventId = Uuid.random(),
-            occurredAt = Instant.parse("2026-01-02T03:04:06Z"),
-            actor = ComponentRef(dispatcherId, ComponentRef.Kind.DISPATCHER),
+            id = uuid(102),
+            eventId = uuid(202),
+            occurredAt = Instant.parse("2026-01-02T03:02:00Z"),
+            actor = ComponentRef(componentId, ComponentRef.Kind.DISPATCHER),
             action = Action.Dispatch(
-                type = com.eva_cli.core.widgets.event.DispatchType.FEED_UP,
-                target = ComponentRef(providerId, ComponentRef.Kind.PROVIDER),
-                reason = "dispatcher",
+                type = DispatchType.FEED_UP,
+                target = ComponentRef(uuid(3), ComponentRef.Kind.PROVIDER),
+                reason = "room-test",
             ),
         )
-        val context = JvmWidgetContext("records-test", root, plugin, null, UnavailablePluginPermissions)
+        val context = context(root, plugin)
         try {
-            provider.attach(context)
-            dispatcher.attach(context)
             runBlocking {
-                provider.records = listOf(providerRecord)
-                dispatcher.records = listOf(dispatcherRecord)
-                provider.backup()
-                dispatcher.backup()
-                provider.records = emptyList()
-                dispatcher.records = emptyList()
-                provider.restore()
-                dispatcher.restore()
+                RecordsStore.write(context, ComponentRef.Kind.PROVIDER, componentId, listOf(providerRecord))
+                RecordsStore.write(context, ComponentRef.Kind.DISPATCHER, componentId, listOf(dispatcherRecord))
+                assertEquals(listOf(providerRecord), RecordsStore.read(context, ComponentRef.Kind.PROVIDER, componentId))
+                assertEquals(listOf(dispatcherRecord), RecordsStore.read(context, ComponentRef.Kind.DISPATCHER, componentId))
+                assertEquals(1L, RecordsStore.count(context, ComponentRef.Kind.PROVIDER, componentId))
+                assertEquals(1L, RecordsStore.count(context, ComponentRef.Kind.DISPATCHER, componentId))
             }
-            assertEquals(listOf(providerRecord), provider.records)
-            assertEquals(listOf(dispatcherRecord), dispatcher.records)
+            assertTrue(Files.isRegularFile(root.resolve("Plugins/records-test/Data/databases/records.db")))
+        } finally {
+            context.close()
+        }
+    }
+
+    @Test
+    fun pagesRecordsInOccurredAtOrderAndReportsCount() = withRuntime { root, plugin ->
+        val componentId = uuid(10)
+        val records = (0 until 519).map { index -> record(componentId, ComponentRef.Kind.PROVIDER, index) }
+        val context = context(root, plugin)
+        try {
             runBlocking {
-                assertEquals(listOf("$providerId.json"), context.files.list("records/providers"))
-                assertEquals(listOf("$dispatcherId.json"), context.files.list("records/dispatchers"))
+                RecordsStore.write(context, ComponentRef.Kind.PROVIDER, componentId, records.reversed())
+                assertEquals(records.size.toLong(), RecordsStore.count(context, ComponentRef.Kind.PROVIDER, componentId))
+                assertEquals(records, RecordsStore.read(context, ComponentRef.Kind.PROVIDER, componentId))
+                assertEquals(records.take(3), RecordsStore.page(context, ComponentRef.Kind.PROVIDER, componentId, limit = 3))
+                assertEquals(records.drop(3).take(3), RecordsStore.page(context, ComponentRef.Kind.PROVIDER, componentId, limit = 3, offset = 3))
+                assertEquals(records.drop(512).take(4), RecordsStore.page(context, ComponentRef.Kind.PROVIDER, componentId, limit = 4, offset = 512))
+                assertEquals(records.drop(518), RecordsStore.page(context, ComponentRef.Kind.PROVIDER, componentId, limit = 3, offset = 518))
+                assertTrue(RecordsStore.page(context, ComponentRef.Kind.PROVIDER, componentId, limit = 3, offset = records.size).isEmpty())
             }
         } finally {
             context.close()
@@ -68,46 +75,45 @@ class RecordsStoreJvmTest {
     }
 
     @Test
-    fun missingBackupRestoresEmptyAndMalformedBackupFailsClearly() = withRuntime { root, plugin ->
-        val id = Uuid.random()
-        val provider = TestProvider(id)
-        val context = JvmWidgetContext("records-test", root, plugin, null, UnavailablePluginPermissions)
+    fun recordsSurviveContextRecreationAndClosedContextReleasesDatabase() = withRuntime { root, plugin ->
+        val componentId = uuid(20)
+        val records = listOf(record(componentId, ComponentRef.Kind.DISPATCHER, 1))
+        val first = context(root, plugin)
+        runBlocking { RecordsStore.write(first, ComponentRef.Kind.DISPATCHER, componentId, records) }
+        first.close()
+        assertFailsWith<IllegalStateException> {
+            runBlocking { RecordsStore.count(first, ComponentRef.Kind.DISPATCHER, componentId) }
+        }
+        val second = context(root, plugin)
         try {
-            provider.attach(context)
-            provider.records = listOf(sampleRecord(id))
             runBlocking {
-                provider.restore()
-                assertTrue(provider.records.isEmpty())
-                context.files.write("records/providers/$id.json", "{broken".encodeToByteArray())
-                val failure = assertFailsWith<IllegalStateException> { provider.restore() }
-                assertTrue(failure.message.orEmpty().contains("PROVIDER"))
-                assertTrue(failure.message.orEmpty().contains(id.toString()))
+                assertEquals(records, RecordsStore.read(second, ComponentRef.Kind.DISPATCHER, componentId))
+                assertEquals(1L, RecordsStore.count(second, ComponentRef.Kind.DISPATCHER, componentId))
             }
         } finally {
-            context.close()
+            second.close()
         }
     }
 
     @Test
-    fun dispatcherLifecycleRestoresOnStartAndBacksUpOnStop() = withRuntime { root, plugin ->
-        val id = Uuid.random()
-        val first = TestDispatcher(id)
-        val providerId = Uuid.random()
+    fun dispatcherLifecycleRestoresRecordsFromRoomOnStartAndBacksUpOnStop() = withRuntime { root, plugin ->
+        val dispatcherId = uuid(30)
+        val providerId = uuid(31)
+        val first = TestDispatcher(dispatcherId)
         val firstProvider = TestProvider(providerId)
-        firstProvider.records = listOf(sampleRecord(providerId))
-        first.providers[providerId] = firstProvider
-        val context = JvmWidgetContext("records-test", root, plugin, null, UnavailablePluginPermissions)
+        val context = context(root, plugin)
         try {
             first.attach(context)
             firstProvider.attach(context)
-            first.records = listOf(sampleRecord(id, ComponentRef.Kind.DISPATCHER))
+            first.providers[providerId] = firstProvider
+            first.records = listOf(record(dispatcherId, ComponentRef.Kind.DISPATCHER, 1))
+            firstProvider.records = listOf(record(providerId, ComponentRef.Kind.PROVIDER, 2))
             runBlocking { first.stop() }
-
-            val second = TestDispatcher(id)
+            val second = TestDispatcher(dispatcherId)
             val secondProvider = TestProvider(providerId)
-            second.providers[providerId] = secondProvider
             second.attach(context)
             secondProvider.attach(context)
+            second.providers[providerId] = secondProvider
             runBlocking { second.start() }
             assertEquals(first.records, second.records)
             assertEquals(firstProvider.records, secondProvider.records)
@@ -116,11 +122,20 @@ class RecordsStoreJvmTest {
         }
     }
 
-    private fun sampleRecord(id: Uuid, kind: ComponentRef.Kind = ComponentRef.Kind.PROVIDER) = EventRecord(
-        eventId = Uuid.random(),
-        actor = ComponentRef(id, kind),
-        action = Action.Handle(Result.END),
+    private fun record(componentId: Uuid, kind: ComponentRef.Kind, index: Int): EventRecord = EventRecord(
+        id = uuid(index + 100),
+        eventId = uuid(index + 200),
+        occurredAt = Instant.parse(
+            "2026-01-02T03:${(index / 60).toString().padStart(2, '0')}:${(index % 60).toString().padStart(2, '0')}Z",
+        ),
+        actor = ComponentRef(componentId, kind),
+        action = Action.Handle(Result.DONE, "record-$index"),
     )
+
+    private fun uuid(value: Int): Uuid = Uuid.parse("00000000-0000-0000-0000-${value.toString().padStart(12, '0')}")
+
+    private fun context(root: Path, plugin: Path) =
+        JvmWidgetContext("records-test", root, plugin, null, UnavailablePluginPermissions)
 
     private fun withRuntime(block: (Path, Path) -> Unit) {
         val root = Files.createTempDirectory("eva-records-")

@@ -585,13 +585,16 @@ val fileSource = PluginSource.File(uri = "/path/to/chat-plugin-1.0.0.eva")
 
 ## Provider/Dispatcher records 持久化
 
-`PluginProvider` 和 `PluginDispatcher` 分别继承 `BaseProvider`、`BaseDispatcher`，默认会自动持久化 `records`。快照写入当前插件的 `Data` 区域：
+`PluginProvider` 和 `PluginDispatcher` 分别继承 `BaseProvider`、`BaseDispatcher`，默认通过 Room 持久化 `records`。宿主按插件隔离数据库，并将其放在当前插件的 `Data` 区域：
 
 ```text
-Data/files/records/providers/<component-id>.json
-Data/files/records/dispatchers/<component-id>.json
+Data/databases/records.db
 ```
 
-Provider 或 Dispatcher 启动时会先恢复记录，停止时会保存当前完整快照。文件不存在时记录为空；JSON 损坏或格式版本不支持会抛出 `IllegalStateException`，防止静默丢失历史。快照只属于创建它的插件 Context，Provider 和 Dispatcher 使用不同目录，即使组件 UUID 相同也不会互相覆盖。
+数据库由 `context.databases.open("records.db", ...)` 延迟打开，并在同一插件 Context 内复用。Provider 和 Dispatcher 通过 `component_id` 与 `component_kind`（`PROVIDER` 或 `DISPATCHER`）隔离，即使组件 UUID 相同也不会互相覆盖。首次使用时 Room 创建数据库和表；没有对应行时恢复为空列表。records 的 Room schema、DAO 和迁移由核心提供，数据库实例和关闭由宿主管理；插件不应自行关闭这个共享数据库。
+
+`backup()` 在一个事务中删除该组件旧行，再插入当前完整的 `records` 列表；它不是逐条追加。读取按 `occurred_at ASC, record_id ASC` 稳定排序，默认每页 512 条，内部先统计总数，再用 `LIMIT/OFFSET` 分页读取，避免一次查询过大的结果集。分页参数要求 `limit > 0`、`offset >= 0`；公开的 `records` 属性仍按列表返回全部记录。
+
+调度树启动时，`BaseDispatcher` 先恢复自身，再恢复每个 Provider 后启动 Provider；子 Dispatcher 由各自的启动流程恢复。停止时先备份当前 Dispatcher，再备份 Provider 并停止，子 Dispatcher 递归执行相同流程。`backupTree()` 与 `restoreTree()` 会按树递归处理所有组件。宿主应在组件停止后再卸载插件；卸载时 Context 统一关闭 `records.db`，关闭后不能继续访问该 Context 的数据库。
 
 组件 `id` 是 records 的持久化键。需要跨插件卸载、重新加载或升级保留记录时，应为每个组件提供稳定的 UUID（不要在每次构造时调用 `Uuid.random()`）。如果插件重写 `backup()` 或 `restore()`，应调用 `super` 以保留默认 records 持久化，再读写插件自己的数据。
