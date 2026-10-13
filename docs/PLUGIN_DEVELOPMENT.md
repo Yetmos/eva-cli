@@ -62,7 +62,7 @@ Provider 负责接收和处理事件。通常继承 `PluginProvider`，实现 `i
 
 ```kotlin
 class ChatProvider : PluginProvider() {
-    override val id = Uuid.random()
+    override val id = Uuid.parse("33333333-3333-4333-8333-333333333333")
     override val name = "Chat Provider"
     override val desc = "Handles chat messages"
     override val topic = "/Chat"
@@ -306,3 +306,16 @@ CLI 每次执行都是独立进程，`load` 或 `unload` 完成后进程即退�
 - [Echo 插件示例](../plugins/echo-plugin/README.md)
 - [`.eva` 发布包规范](../core/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/README.md)
 - [插件清单模型](../core/src/commonMain/kotlin/com/eva_cli/core/widgets/plug/PluginManifest.kt)
+
+## Provider/Dispatcher records 持久化
+
+`PluginProvider` 和 `PluginDispatcher` 分别继承 `BaseProvider`、`BaseDispatcher`，默认会自动持久化 `records`。快照写入当前插件的 `Data` 区域：
+
+```text
+Data/files/records/providers/<component-id>.json
+Data/files/records/dispatchers/<component-id>.json
+```
+
+Provider 或 Dispatcher 启动时会先恢复记录，停止时会保存当前完整快照。文件不存在时记录为空；JSON 损坏或格式版本不支持会抛出 `IllegalStateException`，防止静默丢失历史。快照只属于创建它的插件 Context，Provider 和 Dispatcher 使用不同目录，即使组件 UUID 相同也不会互相覆盖。
+
+组件 `id` 是 records 的持久化键。需要跨插件卸载、重新加载或升级保留记录时，应为每个组件提供稳定的 UUID（不要在每次构造时调用 `Uuid.random()`）。如果插件重写 `backup()` 或 `restore()`，应调用 `super` 以保留默认 records 持久化，再读写插件自己的数据。

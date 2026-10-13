@@ -2,9 +2,11 @@ package com.eva_cli.examples.root
 
 import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
 import com.eva_cli.core.widgets.event.Event
+import kotlin.uuid.Uuid
 
 /** The system root for the plugin tree. */
 class RootDispatcher : PluginDispatcher() {
+    override val id: Uuid = Uuid.parse("11111111-1111-4111-8111-111111111111")
     override val name = "Root Dispatcher"
     override val desc = "Routes events to child dispatchers"
     override val topic = "/"

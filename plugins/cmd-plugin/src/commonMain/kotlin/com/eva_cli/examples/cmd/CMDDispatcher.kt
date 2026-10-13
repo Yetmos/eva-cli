@@ -3,9 +3,11 @@ package com.eva_cli.examples.cmd
 import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.TextEvent
+import kotlin.uuid.Uuid
 
 /** Parses command lines and forwards command results to CMDProvider. */
 class CMDDispatcher : PluginDispatcher() {
+    override val id: Uuid = Uuid.parse("44444444-4444-4444-8444-444444444444")
     override val name = "CMD Dispatcher"
     override val desc = "Parses command-line commands"
     override val topic = "/CMD"

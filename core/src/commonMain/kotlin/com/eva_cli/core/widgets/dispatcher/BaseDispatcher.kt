@@ -1,6 +1,8 @@
 package com.eva_cli.core.widgets.dispatcher
 
 import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.event.ComponentRef
+import com.eva_cli.core.widgets.event.WidgetRecordsPersistence
 import com.eva_cli.core.widgets.BaseWidget
 import com.eva_cli.core.widgets.provider.Provider
 import com.eva_cli.core.widgets.event.Event
@@ -19,6 +21,7 @@ abstract class BaseDispatcher: BaseWidget(), Dispatcher {
         scanDispatchers()
         scanProviders()
         for (item in providers.values) {
+            item.restore()
             item.emit = this::receive
             item.start()
         }
@@ -31,6 +34,7 @@ abstract class BaseDispatcher: BaseWidget(), Dispatcher {
     override suspend fun stop() {
         backup()
         for (item in providers.values) {
+            item.backup()
             item.stop()
         }
         for (item in dispatchers.values) {
@@ -99,12 +103,12 @@ abstract class BaseDispatcher: BaseWidget(), Dispatcher {
 
     // INFO: 备份
     override suspend fun backup() {
-        // TODO: 备份当前 Dispatcher 的 records
+        WidgetRecordsPersistence.write(context, ComponentRef.Kind.DISPATCHER, id, records)
     }
 
     // INFO: 恢复
     override suspend fun restore() {
-        // TODO: 恢复当前 Dispatcher 的 records
+        records = WidgetRecordsPersistence.read(context, ComponentRef.Kind.DISPATCHER, id)
     }
 
 }

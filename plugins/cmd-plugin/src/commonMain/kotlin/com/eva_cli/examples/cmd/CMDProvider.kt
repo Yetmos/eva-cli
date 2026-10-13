@@ -8,7 +8,7 @@ import kotlin.uuid.Uuid
 
 /** Command-line input/output endpoint mounted at /CMD. */
 class CMDProvider : PluginProvider(), CommandLineEndpoint {
-    override val id: Uuid = Uuid.random()
+    override val id: Uuid = Uuid.parse("55555555-5555-4555-8555-555555555555")
     override val name = "CMD Provider"
     override val desc = "Command-line input and output endpoint"
     override val topic = "/CMD"

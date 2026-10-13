@@ -198,7 +198,7 @@ import com.eva_cli.core.widgets.provider.PluginProvider
 import kotlin.uuid.Uuid
 
 class ChatProvider : PluginProvider() {
-    override val id = Uuid.random()
+    override val id = Uuid.parse("33333333-3333-4333-8333-333333333333")
     override val name = "Chat Provider"
     override val desc = "Handles chat events"
     override val topic = "/Chat"
@@ -225,7 +225,7 @@ class ChatProvider : PluginProvider() {
 仓库内的 `eva-cli/plugins/echo-plugin` 提供最小入口、文本回显 Provider 和 JVM 加载测试。
 在 `eva-cli` 目录执行 `./gradlew :plugins:echo-plugin:check` 可构建并验证该示例。
 
-组件扫描已接入已加载插件查询；records 备份恢复和根节点消息路由仍在实现中。
+组件扫描已接入已加载插件查询；Provider/Dispatcher records 已通过插件 Data 区域自动备份和恢复。
 上述继承约定定义的是插件 API 边界，不能替代宿主的完整运行时调度实现。
 
 ## WidgetContext 与宿主能力
@@ -582,3 +582,16 @@ val fileSource = PluginSource.File(uri = "/path/to/chat-plugin-1.0.0.eva")
 
 清单中的 `source` 描述包内源码工程的位置和模块坐标，与宿主 `Plugin.source` 的来源信息用途不同。
 上述模型仅保存字段；清单读取、下载、Git 获取、文件访问、摘要校验及启用和配置应用逻辑仍需由安装器或宿主实现。
+
+## Provider/Dispatcher records 持久化
+
+`PluginProvider` 和 `PluginDispatcher` 分别继承 `BaseProvider`、`BaseDispatcher`，默认会自动持久化 `records`。快照写入当前插件的 `Data` 区域：
+
+```text
+Data/files/records/providers/<component-id>.json
+Data/files/records/dispatchers/<component-id>.json
+```
+
+Provider 或 Dispatcher 启动时会先恢复记录，停止时会保存当前完整快照。文件不存在时记录为空；JSON 损坏或格式版本不支持会抛出 `IllegalStateException`，防止静默丢失历史。快照只属于创建它的插件 Context，Provider 和 Dispatcher 使用不同目录，即使组件 UUID 相同也不会互相覆盖。
+
+组件 `id` 是 records 的持久化键。需要跨插件卸载、重新加载或升级保留记录时，应为每个组件提供稳定的 UUID（不要在每次构造时调用 `Uuid.random()`）。如果插件重写 `backup()` 或 `restore()`，应调用 `super` 以保留默认 records 持久化，再读写插件自己的数据。

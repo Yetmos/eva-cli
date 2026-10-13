@@ -8,7 +8,7 @@ import kotlin.uuid.Uuid
 
 /** 最小文本处理示例；宿主须串行调用生命周期方法和 receive。 */
 class EchoProvider : PluginProvider() {
-    override val id: Uuid = Uuid.random()
+    override val id: Uuid = Uuid.parse("33333333-3333-4333-8333-333333333333")
     override val name = "Echo Provider"
     override val desc = "Replies to text events with an Echo: prefix"
     override val topic = "/Echo"
