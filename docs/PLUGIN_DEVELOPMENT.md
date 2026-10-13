@@ -259,6 +259,29 @@ PlugManager.uninstallPlugin("com.example.chat", "0.1.0")
 
 当前 URL 和 Git 来源安装接口尚未实现，本地 `PluginSource.File` 是可用的安装方式。
 
+## 使用 CLI 管理插件
+
+构建 CLI 发行版后，可以使用 `eva` 命令管理本地 `.eva` 包：
+
+```text
+eva plugin install <path> [sha256]
+eva plugin list
+eva plugin remove <id> <version>
+eva plugin load <id> <version>
+eva plugin unload <id>
+```
+
+例如，在仓库内直接运行：
+
+```powershell
+.\gradlew.bat :cli:run --args="plugin install ../plugins/echo-plugin/build/distributions/echo-plugin-1.0.0-alpha.eva"
+.\gradlew.bat :cli:run --args="plugin list"
+```
+
+`install` 会校验并安装本地 `.eva` 文件；`list` 显示当前运行目录下的有效安装；`remove` 删除指定版本，已加载的插件必须先释放；`load` 和 `unload` 分别验证当前进程中的加载和释放流程。
+
+CLI 每次执行都是独立进程，`load` 或 `unload` 完成后进程即退出，运行态不会跨命令保存。要让插件参与命令行处理，应先安装插件，再运行 `eva cmd`；`Eva.start()` 会自动加载已安装插件并启动 Dispatcher 树。
+
 ## 发布检查清单
 
 发布前建议逐项确认：

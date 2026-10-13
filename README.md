@@ -54,6 +54,20 @@ cli/build/install/eva/
 
 安装所需插件后，再运行 `./cli/build/install/eva/bin/eva cmd`。
 
+CLI 也提供本地插件管理命令：
+
+```sh
+eva plugin install path/to/plugin.eva
+eva plugin list
+eva plugin remove com.example.plugin 1.0.0
+eva plugin load com.example.plugin 1.0.0
+eva plugin unload com.example.plugin
+```
+
+`install` 支持在路径后追加预期的 SHA-256 摘要；`load` 和 `unload` 只作用于当前 CLI 进程，
+适合验证插件能否加载和释放。需要让插件参与 `eva cmd` 时，应先将插件安装到宿主运行目录，
+再启动 `eva cmd`；运行时会自动加载已安装插件。
+
 发布时可以生成压缩包：
 
 ```sh
