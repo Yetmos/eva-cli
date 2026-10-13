@@ -389,6 +389,11 @@ Android/iOS 当前的三个 API 均明确抛出 `UnsupportedOperationException`�
 重复启动前须先停止；启动失败时保留根引用，调用方须执行 `Booter.stop()` 清理后再重试。
 `stop()` 成功后释放根引用，未启动时停止为空操作。生命周期操作须串行执行。
 
+`com.eva_cli.core.runtime.Runtime` 将插件批量加载和调度树生命周期组合起来：
+`Runtime.start()` 在 `Booter.start()` 失败时停止失败的根节点，并只卸载本次启动新加载的插件，保留调用前已经加载的实例。
+`Runtime.stop()` 先停止 Dispatcher 树，再逆序释放所有已加载插件的 Context、数据库、网络客户端和 ClassLoader；即使某个插件释放失败，也会继续处理其他插件，最后聚合并抛出清理异常。
+重复调用 `Runtime.stop()` 不会重复执行已释放的实例。宿主应将这些生命周期调用与安装、加载、卸载和运行目录变更串行执行。
+
 ## 按 topic 查询组件
 
 ```kotlin

@@ -1,5 +1,6 @@
 package com.eva_cli.core.runtime
 
+import com.eva_cli.core.widgets.plug.LoadedPlugin
 import com.eva_cli.core.widgets.plug.PlugManager
 
 object Plugin {
@@ -41,6 +42,48 @@ object Plugin {
             }
             throw error
         }
+    }
+
+    /**
+     * Stops the plugin runtime state by releasing every loaded plugin.
+     *
+     * Component lifecycle callbacks are owned by [Booter].  This method is
+     * deliberately limited to unloading the plugin registrations so that it
+     * can also clean up plugins which were loaded but never attached to a
+     * dispatcher tree. Plugins are released in reverse registry order and
+     * every release is attempted even when another release fails.
+     */
+    fun stop() {
+        unloadPlugins(PlugManager.loadedList.asReversed())
+    }
+
+    /**
+     * Releases only the plugins loaded by a particular start attempt.  The
+     * runtime uses this when startup fails so plugins that were already loaded
+     * by the caller remain available.
+     */
+    internal fun stopOnly(pluginIds: Set<String>) {
+        if (pluginIds.isEmpty()) return
+        val plugins = PlugManager.loadedList
+            .filter { it.manifest.id in pluginIds }
+            .asReversed()
+        unloadPlugins(plugins)
+    }
+
+    private fun unloadPlugins(plugins: List<LoadedPlugin>) {
+        var failure: Throwable? = null
+        for (plugin in plugins) {
+            try {
+                PlugManager.unloadPlugin(plugin.manifest.id)
+            } catch (error: Throwable) {
+                if (failure == null) {
+                    failure = error
+                } else if (failure !== error) {
+                    failure.addSuppressed(error)
+                }
+            }
+        }
+        failure?.let { throw it }
     }
 
 }

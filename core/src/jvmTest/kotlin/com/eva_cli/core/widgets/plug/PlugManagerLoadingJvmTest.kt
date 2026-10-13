@@ -2,6 +2,7 @@ package com.eva_cli.core.widgets.plug
 
 import com.eva_cli.core.runtime.Booter
 import com.eva_cli.core.runtime.Plugin as RuntimePlugin
+import com.eva_cli.core.runtime.Runtime as RuntimeState
 import com.eva_cli.core.widgets.dispatcher.BaseDispatcher
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
@@ -30,6 +31,9 @@ import com.eva_cli.testplugins.QueryEntry
 import com.eva_cli.testplugins.RepeatedComponentsEntry
 import com.eva_cli.testplugins.RequiredArgumentEntry
 import com.eva_cli.testplugins.ScanEntry
+import com.eva_cli.testplugins.QuietEntry
+import com.eva_cli.testplugins.QuietDispatcher
+import com.eva_cli.testplugins.QuietWorkerEntry
 import com.eva_cli.testplugins.dependencies.PrivateDependency
 import java.net.JarURLConnection
 import java.net.URLClassLoader
@@ -336,6 +340,71 @@ class PlugManagerLoadingJvmTest {
             Booter.start()
             assertEquals(listOf("/:restore", "/Child:restore", "/Child:start", "/:start"), events)
         }
+    }
+
+    @Test
+    fun runtimeStopStopsTheRootAndUnloadsEveryPluginAndIsIdempotent() = withRuntimeRoot { root ->
+        writePlugin(root, id = "com.example.root", entry = BootEntry::class.java)
+        writePlugin(root, id = "com.example.worker", entry = QuietEntry::class.java)
+        val events = mutableListOf<String>()
+        LoadingFixtureHooks.onLifecycle = { topic, action -> events.add("$topic:$action") }
+
+        runBlocking {
+            RuntimeState.start()
+            assertEquals(listOf("com.example.root", "com.example.worker"), PlugManager.loadedList.map { it.manifest.id })
+
+            RuntimeState.stop()
+
+            assertEquals(
+                listOf("/:restore", "/Child:restore", "/Child:start", "/:start", "/:backup", "/Child:backup", "/Child:stop", "/:stop"),
+                events,
+            )
+            assertTrue(PlugManager.loadedList.isEmpty())
+
+            // A second shutdown must be safe after both the dispatcher tree and plugins are gone.
+            RuntimeState.stop()
+            assertTrue(PlugManager.loadedList.isEmpty())
+            assertEquals(8, events.size)
+        }
+    }
+
+    @Test
+    fun runtimeStopContinuesUnloadingAfterAPluginResourceCloseFails() = withRuntimeRoot { root ->
+        writePlugin(root, id = "com.example.root", entry = BootEntry::class.java)
+        writePlugin(root, id = "com.example.failing", entry = QuietEntry::class.java)
+        writePlugin(root, id = "com.example.worker", entry = QuietWorkerEntry::class.java)
+        RuntimePlugin.start()
+        val loadedFailing = PlugManager.loadedList.single { it.manifest.id == "com.example.failing" }
+        loadedFailing.context.databases.open("failure.db", PluginDatabaseFactory {
+            object : PluginDatabase {
+                override fun close() = error("database close failed")
+            }
+        })
+
+        runBlocking {
+            RuntimeState.start()
+            val failure = assertFailsWith<IllegalStateException> { RuntimeState.stop() }
+            assertTrue(
+                failure.message.orEmpty().contains("database close failed") ||
+                    failure.cause?.message.orEmpty().contains("database close failed") ||
+                    failure.suppressed.any { it.message.orEmpty().contains("database close failed") },
+            )
+            // The failing close is reported, but every registration and class loader is still released.
+            assertTrue(PlugManager.loadedList.isEmpty())
+            RuntimeState.stop()
+        }
+    }
+
+    @Test
+    fun runtimeStartUnloadsPluginsWhenTheDispatcherTreeCannotStart() = withRuntimeRoot { root ->
+        writePlugin(root, entry = LoadingEntry::class.java)
+
+        val failure = assertFailsWith<IllegalStateException> {
+            runBlocking { RuntimeState.start() }
+        }
+
+        assertTrue(failure.message.orEmpty().contains("必须有且仅有一个 RootDispatcher"))
+        assertTrue(PlugManager.loadedList.isEmpty())
     }
 
     @Test
@@ -1056,6 +1125,7 @@ class PlugManagerLoadingJvmTest {
         LoadingProvider::class.java,
         LoadingDispatcher::class.java,
         BootDispatcher::class.java,
+        QuietDispatcher::class.java,
         // Deliberately bundled API duplicates must still resolve to the host definitions.
         PluginEntry::class.java,
         Event::class.java,
@@ -1132,7 +1202,11 @@ class PlugManagerLoadingJvmTest {
             LoadingFixtureHooks.onConstruct = null
             LoadingFixtureHooks.onLifecycle = null
             runBlocking { Booter.stop() }
-            PlugManager.loadedList.forEach { PlugManager.unloadPlugin(it.manifest.id) }
+            // The resource-close failure test intentionally leaves a failing
+            // database; cleanup must still restore global test state.
+            PlugManager.loadedList.toList().forEach { plugin ->
+                runCatching { PlugManager.unloadPlugin(plugin.manifest.id) }
+            }
             if (previous == null) System.clearProperty("user.dir") else System.setProperty("user.dir", previous)
             root.toFile().deleteRecursively()
         }

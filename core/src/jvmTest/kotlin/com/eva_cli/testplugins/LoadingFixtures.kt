@@ -86,6 +86,22 @@ class BootEntry : PluginEntry {
     override val dispatchers = listOf(BootDispatcher("/Child"), BootDispatcher("/"))
 }
 
+/** A non-root dispatcher that can participate in the host tree during lifecycle tests. */
+class QuietEntry : PluginEntry {
+    override val dispatchers = listOf(QuietDispatcher("/Quiet"))
+}
+
+class QuietWorkerEntry : PluginEntry {
+    override val dispatchers = listOf(QuietDispatcher("/QuietWorker"))
+}
+
+class QuietDispatcher(override val topic: String) : PluginDispatcher() {
+    override val name = "Quiet dispatcher"
+    override val desc = "Lifecycle test fixture"
+    override suspend fun dispatch(event: Event) = Unit
+    override suspend fun receive(event: Event) = Unit
+}
+
 class DuplicateRootsEntry : PluginEntry {
     override val dispatchers = listOf(BootDispatcher("/"), BootDispatcher("/"))
 }

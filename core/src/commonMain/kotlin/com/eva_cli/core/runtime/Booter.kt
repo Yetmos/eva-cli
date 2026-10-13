@@ -7,6 +7,10 @@ import com.eva_cli.core.widgets.plug.PlugManager
 object Booter {
     private var root: Dispatcher? = null
 
+    /** Whether a root dispatcher is currently retained by the runtime. */
+    internal val isRunning: Boolean
+        get() = root != null
+
     /**
      * 启动已加载插件中唯一 topic=/ 的根调度器，由其负责启动整棵树。
      * 生命周期操作须串行调用；启动失败时保留根引用，须先 stop 清理再重试。
