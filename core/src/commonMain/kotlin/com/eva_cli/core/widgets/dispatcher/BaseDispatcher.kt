@@ -2,7 +2,7 @@ package com.eva_cli.core.widgets.dispatcher
 
 import com.eva_cli.core.widgets.event.EventRecord
 import com.eva_cli.core.widgets.event.ComponentRef
-import com.eva_cli.core.widgets.event.WidgetRecordsPersistence
+import com.eva_cli.core.widgets.event.RecordsStore
 import com.eva_cli.core.widgets.BaseWidget
 import com.eva_cli.core.widgets.provider.Provider
 import com.eva_cli.core.widgets.event.Event
@@ -103,12 +103,12 @@ abstract class BaseDispatcher: BaseWidget(), Dispatcher {
 
     // INFO: 备份
     override suspend fun backup() {
-        WidgetRecordsPersistence.write(context, ComponentRef.Kind.DISPATCHER, id, records)
+        RecordsStore.write(context, ComponentRef.Kind.DISPATCHER, id, records)
     }
 
     // INFO: 恢复
     override suspend fun restore() {
-        records = WidgetRecordsPersistence.read(context, ComponentRef.Kind.DISPATCHER, id)
+        records = RecordsStore.read(context, ComponentRef.Kind.DISPATCHER, id)
     }
 
 }

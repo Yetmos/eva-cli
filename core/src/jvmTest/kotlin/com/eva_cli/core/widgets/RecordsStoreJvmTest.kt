@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-class WidgetRecordsPersistenceJvmTest {
+class RecordsStoreJvmTest {
     @Test
     fun providerAndDispatcherBackupsRoundTripAndUseSeparateFiles() = withRuntime { root, plugin ->
         val providerId = Uuid.random()

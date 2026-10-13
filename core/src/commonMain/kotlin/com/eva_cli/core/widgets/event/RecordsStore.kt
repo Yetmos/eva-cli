@@ -11,7 +11,7 @@ import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /** Stable JSON persistence for records owned by one provider or dispatcher. */
-internal object WidgetRecordsPersistence {
+internal object RecordsStore {
     private const val FORMAT_VERSION = 1
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = false }
 
