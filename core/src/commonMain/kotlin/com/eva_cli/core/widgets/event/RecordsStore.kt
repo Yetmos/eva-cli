@@ -10,7 +10,7 @@ import kotlinx.serialization.json.Json
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-/** Stable JSON persistence for records owned by one provider or dispatcher. */
+/** 为单个 Provider 或 Dispatcher 管理 records 的 JSON 持久化。 */
 internal object RecordsStore {
     private const val FORMAT_VERSION = 1
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = false }
