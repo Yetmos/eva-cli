@@ -1,6 +1,7 @@
 package com.eva_cli.examples.cmd
 
 import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
+import com.eva_cli.core.widgets.event.DispatchType
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.TextEvent
 import kotlin.uuid.Uuid
@@ -31,7 +32,16 @@ class CMDDispatcher : PluginDispatcher() {
     /** RootDispatcher 将最终回复通过 /CMD Dispatcher 的 dispatch 传入输出端。 */
     override suspend fun dispatch(event: Event) {
         if (!enable) return
-        commandPort.receive(event)
+        val provider = providers.values.single()
+        val endpoint = commandPort
+        record(event, DispatchType.HANDLE, provider)
+        try {
+            endpoint.receive(event)
+        } catch (failure: Throwable) {
+            runCatching { update(event) }.exceptionOrNull()?.let(failure::addSuppressed)
+            throw failure
+        }
+        update(event)
     }
 
     /** CMDProvider 的输入回调进入这里，再提交到宿主根 Dispatcher。 */

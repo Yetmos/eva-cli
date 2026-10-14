@@ -101,6 +101,7 @@ val stageEvaPlugin = tasks.register<Sync>("stageEvaPlugin") {
 }
 
 tasks.named<Test>("jvmTest") {
+    systemProperty("user.dir", layout.buildDirectory.get().asFile.absolutePath)
     dependsOn(stageEvaPlugin)
     inputs.dir(pluginDirectory)
     inputs.dir(stagingDirectory)

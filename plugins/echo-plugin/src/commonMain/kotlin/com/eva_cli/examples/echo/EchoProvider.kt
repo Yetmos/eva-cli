@@ -2,6 +2,7 @@ package com.eva_cli.examples.echo
 
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.event.Result
 import com.eva_cli.core.widgets.provider.Provider
 import com.eva_cli.core.widgets.provider.PluginProvider
 import kotlin.uuid.Uuid
@@ -27,12 +28,20 @@ class EchoProvider : PluginProvider() {
 
     override suspend fun receive(event: Event) {
         if (!enable || status == Provider.Status.STOP) return
-        val text = event.payload as? Event.Payload.Text ?: return
+        val text = event.payload as? Event.Payload.Text
+        if (text == null) {
+            record(event, Result.END, "Echo only supports text events")
+            update(event)
+            return
+        }
         val output = checkNotNull(emit) { "Bind EchoProvider.emit before sending text events" }
 
         status = Provider.Status.WORKING
         try {
-            output(EchoReply("Echo: ${text.value}", id))
+            val reply = EchoReply("Echo: ${text.value}", id)
+            output(reply)
+            record(event, Result.DONE)
+            update(event)
         } finally {
             // 输出回调可能停止组件，完成本次处理时保留 STOP 状态。
             if (status != Provider.Status.STOP) status = Provider.Status.IDLE

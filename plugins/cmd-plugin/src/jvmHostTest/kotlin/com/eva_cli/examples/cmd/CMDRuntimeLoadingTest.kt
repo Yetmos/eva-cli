@@ -2,6 +2,8 @@ package com.eva_cli.examples.cmd
 
 import com.eva_cli.cmd.api.CommandLinePort
 import com.eva_cli.core.Eva
+import com.eva_cli.core.widgets.event.EventState
+import com.eva_cli.core.widgets.event.EventStore
 import com.eva_cli.core.widgets.plug.PluginSource
 import com.eva_cli.core.widgets.plug.PlugManager
 import java.nio.file.Files
@@ -15,6 +17,7 @@ import kotlin.test.assertEquals
 class CMDRuntimeLoadingTest {
     @Test
     fun installedCmdAndEchoPluginsExchangeACommandThroughTheRuntime() = runBlocking {
+        EventStore.closeRuntime()
         val root = Files.createTempDirectory("eva-cmd-runtime")
         val previousUserDir = System.getProperty("user.dir")
         val echoArchive = zipDirectory(
@@ -49,6 +52,13 @@ class CMDRuntimeLoadingTest {
             port.submit("echo hello")
 
             assertEquals(listOf("Echo: hello"), output)
+            val events = EventStore.open(root.toString())
+            try {
+                assertEquals(2L, events.count())
+                assertEquals(2L, events.count(EventState.COMPLETED))
+            } finally {
+                events.close()
+            }
         } finally {
             Eva.stop()
             loadedIds.asReversed().forEach { id ->

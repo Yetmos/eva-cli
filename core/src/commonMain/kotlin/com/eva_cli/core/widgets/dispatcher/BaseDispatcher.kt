@@ -1,20 +1,38 @@
 package com.eva_cli.core.widgets.dispatcher
 
 import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.event.Action
 import com.eva_cli.core.widgets.event.ComponentRef
+import com.eva_cli.core.widgets.event.DispatchType
 import com.eva_cli.core.widgets.event.RecordsStore
 import com.eva_cli.core.widgets.BaseWidget
+import com.eva_cli.core.widgets.Widget
 import com.eva_cli.core.widgets.provider.Provider
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.plug.PlugManager
 import kotlin.uuid.Uuid
 
 abstract class BaseDispatcher: BaseWidget(), Dispatcher {
+    override val componentKind: ComponentRef.Kind = ComponentRef.Kind.DISPATCHER
     override val id: Uuid = Uuid.random()
     override var enable: Boolean = true
     override var records: List<EventRecord> = emptyList()
     override val providers: LinkedHashMap<Uuid, Provider> = linkedMapOf()
     override val dispatchers: LinkedHashMap<Uuid, Dispatcher> = linkedMapOf()
+
+    protected fun record(
+        event: Event,
+        type: DispatchType,
+        target: Widget,
+        reason: String? = null,
+    ): EventRecord {
+        val kind = when (target) {
+            is Provider -> ComponentRef.Kind.PROVIDER
+            is Dispatcher -> ComponentRef.Kind.DISPATCHER
+            else -> error("Dispatch target must be a Provider or Dispatcher")
+        }
+        return record(event, Action.Dispatch(type, ComponentRef(target.id, kind), reason))
+    }
 
     override suspend fun start() {
         restore()

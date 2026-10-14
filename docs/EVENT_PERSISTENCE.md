@@ -2,7 +2,35 @@
 
 本文说明当前仓库中 Event 相关记录的持久化实现，面向插件开发者和宿主维护者。实现集中在 `core` 的 `widgets/event` 包，默认通过 Room 和 SQLite 保存 Provider、Dispatcher 的 `records`。
 
-当前落库的是 **组件持有的 `List<EventRecord>`**。完整 Event 的 `payload`、`metadata` 以及 `Event.records` 本身没有独立的持久化入口；恢复组件记录也不会重建 Event 或重新执行事件。
+组件持有的 `List<EventRecord>` 由 `backup()` 保存到插件的 `records.db`。`update(event)` 将完整 Event 的 `payload`、`metadata`、`records` 和处理状态保存到宿主 `Events/events.db`；恢复组件记录不会重新执行事件。
+
+### 更新处理记录与事件快照
+
+`Widget.update(event: Event)` 的默认实现在 `BaseWidget`。业务先通过受保护的 `record(...)` 创建明确的分发决策或处理结果，追加到事件履历和当前组件日志，再调用 `update(event)` 保存。`update` 还会将事件履历中属于当前组件、当前事件的记录按记录 ID 去重补入组件日志，不会触发 `receive`、`dispatch` 或 `emit`。
+
+Dispatcher 在调用目标前记录决策，调用返回后更新事件快照：
+
+```kotlin
+record(event, DispatchType.HANDLE, provider)
+provider.receive(event)
+update(event)
+```
+
+Provider 完成处理后更新；返回同一个事件时，必须先保存结果再调用 Dispatcher 的回调：
+
+```kotlin
+record(event, Result.DO_BACK, "处理完成，继续分发")
+update(event)
+checkNotNull(emit)(event)
+```
+
+示例插件的分发异常路径也会尝试保存已有记录，并保留原异常。取消不会被转换成成功结果。Echo 产生新回复事件，回复与原输入使用各自的 ID 和履历。
+
+Root 从最新 Provider 的 `BACK/DO_BACK` 记录识别回传者；同一事件在当前分发链中最多交给每个子 Dispatcher 一次，避免同步回传产生重复处理或循环。最外层调用结束后清理本次目标集合，允许之后再次分发同一事件。
+
+事件状态依据该事件的最后一条记录：`Handle(DONE/END)` 为 `COMPLETED`；分发、`BACK/DO_BACK` 或空履历为 `PROCESSING`。Dispatcher 仅再次调用 `update` 不会改变已经完成的状态；追加新的分发决策则表示进入下一轮处理。相同事件 ID 在数据库事务中覆盖快照，保留 `Event.records` 的追加顺序。
+
+宿主事件库延迟打开，由所有组件共享，`Runtime.stop()` 在组件停止后关闭，启动失败的清理路径也会关闭。直接使用组件的宿主须在停止组件后调用 `EventStore.closeRuntime()`；运行目录在句柄存活期间须保持不变。`update` 不会立即保存插件的组件日志，插件日志仍由 `backup()` 保存。事件与组件的列表修改须按现有契约串行执行。
 
 ## 1. 数据模型与记录责任
 
@@ -10,10 +38,10 @@
 
 | 对象或字段 | 含义 | 默认持久化行为 |
 | --- | --- | --- |
-| `Event.id` | 当前事件的 UUID | 记录中仅保存对应的 `eventId`。 |
-| `Event.metadata` | 来源 `providerId`、创建时间 `createdAt` | 不写入 records 数据库。 |
-| `Event.payload` | 文本或二进制内容 | 不写入 records 数据库。 |
-| `Event.records` | 当前事件流转过程中的记录列表 | 仅存于事件对象中，需要调用方维护。 |
+| `Event.id` | 当前事件的 UUID | 作为宿主事件库主键；组件日志保存对应的 `eventId`。 |
+| `Event.metadata` | 来源 `providerId`、创建时间 `createdAt` | `update(event)` 写入宿主事件库。 |
+| `Event.payload` | 文本或二进制内容 | `update(event)` 写入宿主事件库。 |
+| `Event.records` | 当前事件流转过程中的记录列表 | `update(event)` 按列表顺序保存完整快照。 |
 | `Widget.records` | 当前 Provider 或 Dispatcher 的记录列表 | 基类的 `backup()` 保存，`restore()` 恢复。 |
 
 `EventRecord` 描述一次调度决策或处理结果，通过 ID 关联事件和组件，不引用完整 Event：
@@ -41,14 +69,14 @@
 
 ### 谁负责生成记录
 
-核心基类提供保存与恢复，不会在 `receive()`、`dispatch()` 或 `emit` 时自动创建 `EventRecord`。当前 Echo、CMD 和 Root 插件示例也没有自动记录逻辑。
+核心基类提供 `record(...)`、`update(event)` 与备份、恢复；业务在知道目标或结果的位置显式调用。Echo、CMD 和 Root 插件已在 Provider 处理和向目标分发时接入记录与更新。
 
 需要追踪事件时，由业务代码创建记录，并按需要将同一条记录追加到两处：
 
 - `event.records`：保留当前事件的流转履历，要求 `record.eventId == event.id`。
 - `records`：保留当前组件的处理日志，要求 `record.actor` 指向当前组件。
 
-这两份列表不会自动同步。只更新 `event.records` 后调用组件 `backup()`，不会将该事件的履历保存到数据库。当前存储层也不校验上述关联关系，调用方负责保证一致性。
+`record(...)` 同时追加两份列表，`update(event)` 补入属于当前组件的事件记录。只调用组件 `backup()` 不会保存完整 Event；完整事件快照由 `update(event)` 保存。直接创建记录时，调用方负责保证关联关系正确。
 
 ## 2. 存储位置与隔离
 
@@ -75,7 +103,7 @@ JVM 宿主中的文件布局如下：
 
 组件 ID 必须稳定，才能在重建实例、重新加载或升级后恢复原记录。`BaseDispatcher.id` 默认使用 `Uuid.random()`，插件应显式覆盖为稳定 UUID。同一个插件内，同类型的组件也不能共用持久化 ID，否则它们的备份会替换同一组记录。
 
-`Configure` 虽然创建根目录下的 `Events/` 和 `Data/`，当前 records 实现实际使用上述插件专属数据库，未将完整 Event 写入 `Events/`。
+组件日志使用上述插件专属数据库；完整 Event 快照由 `EventStore` 写入 `<运行目录>/Events/events.db`，与插件的 `records.db` 独立。
 
 ## 3. Room 表结构
 
@@ -284,13 +312,13 @@ backup()
 | --- | --- |
 | 处理过事件，恢复后却没有记录 | 是否创建了 `EventRecord`、追加到组件 `records`，并成功调用过 `backup()`。 |
 | 重启后读不到旧记录 | 检查运行目录、插件 ID、组件 ID、组件类型；尤其检查随机生成的 Dispatcher ID。 |
-| 只有事件履历，没有持久化记录 | `event.records` 与组件 `records` 独立，需要业务同时更新。 |
+| 只有事件履历，没有持久化记录 | 是否调用 `update(event)` 保存宿主快照，以及 `backup()` 保存组件日志。 |
 | 恢复后顺序变化 | SQL 按 `occurred_at`、`record_id` 的字符串值排序，没有保存追加序号。 |
 | 一次备份后数据量变少 | 保存完整替换当前组件快照；检查内存列表是否被清空、截断，或存在重复记录 ID。 |
 | 卸载后数据库访问失败 | Context 已关闭；应重新加载插件并使用新实例及其 Context。 |
 | 出现非法 UUID、时间、枚举或缺失字段 | 恢复会抛出异常，不会跳过坏记录或将错误当作空列表。 |
 | 需要在进程异常退出后保留最近处理记录 | 需要主动安排更频繁的备份；仅靠正常停止时保存不能覆盖异常退出。 |
-| 需要完整 Event 归档、重放或可靠投递 | 当前 records 只保存关联 ID 和结果；需另行设计 payload 存储、事件状态及恢复流程。 |
+| 需要完整 Event 归档、重放或可靠投递 | `EventStore` 已保存完整快照与状态；重放和可靠投递仍须由宿主安排，读库不会自动执行事件。 |
 | 需要查询跨组件或跨插件的事件履历 | 当前没有对应公开 API；插件数据库也按插件隔离。 |
 
 `List<EventRecord>` 的只读接口不保证底层集合不可变，`records = records + record` 也不是原子操作。并发处理时，需要同步列表更新与保存/恢复，避免丢失追加或读取混合状态。

@@ -30,6 +30,13 @@ interface Widget {
 
     suspend fun receive(event: Event)
 
+    /**
+     * 同步本组件在 [Event.records] 中的记录，并将完整事件快照保存到宿主 EventStore。
+     * 分发返回后、Provider 处理完成或回传前调用；具体目标和结果须先由业务明确记录。
+     * 不触发再次分发；重复调用不会重复追加已有记录。组件 records 的落库仍由 backup 负责。
+     */
+    suspend fun update(event: Event)
+
     suspend fun backup()
 
     suspend fun restore()

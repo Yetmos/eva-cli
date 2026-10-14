@@ -1,6 +1,8 @@
 package com.eva_cli.examples.echo
 
 import com.eva_cli.core.widgets.event.Event
+import com.eva_cli.core.widgets.event.Action
+import com.eva_cli.core.widgets.event.Result
 import com.eva_cli.core.widgets.provider.Provider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -14,12 +16,13 @@ import kotlin.test.assertTrue
 
 class EchoProviderTest {
     @Test
-    fun emitsANewTextEventWithoutChangingTheInput() = runBlocking {
+    fun emitsANewTextEventAndRecordsSuccessfulInputHandling() = runBlocking {
         val provider = EchoProvider()
         val input = TestEvent(Event.Payload.Text("hello"))
         val replies = mutableListOf<Event>()
         provider.emit = {
             assertEquals(Provider.Status.WORKING, provider.status)
+            assertTrue(input.records.isEmpty())
             replies += it
         }
         provider.start()
@@ -32,20 +35,26 @@ class EchoProviderTest {
         assertNotEquals(input.id, reply.id)
         assertEquals(Event.Payload.Text("hello"), input.payload)
         assertNull(input.metadata.providerId)
-        assertTrue(input.records.isEmpty())
+        assertEquals(Action.Handle(Result.DONE), input.records.single().action)
+        assertEquals(provider.id, input.records.single().actor.id)
+        assertEquals(input.records, provider.records)
+        assertTrue(reply.records.isEmpty())
         assertEquals(Provider.Status.IDLE, provider.status)
     }
 
     @Test
-    fun ignoresBinaryEvents() = runBlocking {
+    fun recordsUnsupportedEventsAsEnded() = runBlocking {
         val provider = EchoProvider()
         val replies = mutableListOf<Event>()
         provider.emit = { replies += it }
         provider.start()
 
-        provider.receive(TestEvent(Event.Payload.Binary(byteArrayOf(1, 2, 3))))
+        val input = TestEvent(Event.Payload.Binary(byteArrayOf(1, 2, 3)))
+        provider.receive(input)
 
         assertTrue(replies.isEmpty())
+        assertEquals(Result.END, (input.records.single().action as Action.Handle).result)
+        assertEquals(input.records, provider.records)
         assertEquals(Provider.Status.IDLE, provider.status)
     }
 
@@ -65,6 +74,8 @@ class EchoProviderTest {
         provider.receive(input)
 
         assertTrue(replies.isEmpty())
+        assertTrue(input.records.isEmpty())
+        assertTrue(provider.records.isEmpty())
         assertEquals(Provider.Status.STOP, provider.status)
 
         provider.start()
@@ -82,6 +93,8 @@ class EchoProviderTest {
 
         assertSame(failure, assertFailsWith<IllegalStateException> { provider.receive(input) })
         assertEquals(Provider.Status.IDLE, provider.status)
+        assertTrue(input.records.isEmpty())
+        assertTrue(provider.records.isEmpty())
 
         val replies = mutableListOf<Event>()
         provider.emit = { replies += it }
@@ -93,13 +106,16 @@ class EchoProviderTest {
     fun propagatesCancellationAndResetsTheWorkingState() = runBlocking {
         val provider = EchoProvider()
         val cancellation = CancellationException("host stopped waiting")
+        val input = TestEvent(Event.Payload.Text("hello"))
         provider.emit = { throw cancellation }
         provider.start()
 
         assertSame(cancellation, assertFailsWith<CancellationException> {
-            provider.receive(TestEvent(Event.Payload.Text("hello")))
+            provider.receive(input)
         })
         assertEquals(Provider.Status.IDLE, provider.status)
+        assertTrue(input.records.isEmpty())
+        assertTrue(provider.records.isEmpty())
     }
 
     @Test

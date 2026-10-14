@@ -1,6 +1,7 @@
 package com.eva_cli.core.runtime
 
 import com.eva_cli.core.widgets.plug.PlugManager
+import com.eva_cli.core.widgets.event.EventStore
 
 // 使用全局 IO 管理器；所有 Runtime 实例共享其启停状态。
 object Runtime {
@@ -42,6 +43,13 @@ object Runtime {
             } catch (cleanupError: Throwable) {
                 if (error !== cleanupError) error.addSuppressed(cleanupError)
             }
+            if (!booterWasRunning) {
+                try {
+                    EventStore.closeRuntime()
+                } catch (cleanupError: Throwable) {
+                    if (error !== cleanupError) error.addSuppressed(cleanupError)
+                }
+            }
             throw error
         }
     }
@@ -65,6 +73,15 @@ object Runtime {
         // repeated Runtime.stop() is a no-op after this point.
         try {
             Plugin.stop()
+        } catch (error: Throwable) {
+            if (failure == null) {
+                failure = error
+            } else if (failure !== error) {
+                failure.addSuppressed(error)
+            }
+        }
+        try {
+            EventStore.closeRuntime()
         } catch (error: Throwable) {
             if (failure == null) {
                 failure = error

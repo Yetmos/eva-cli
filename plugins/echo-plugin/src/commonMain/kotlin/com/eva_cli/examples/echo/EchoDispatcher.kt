@@ -1,6 +1,7 @@
 package com.eva_cli.examples.echo
 
 import com.eva_cli.core.widgets.dispatcher.PluginDispatcher
+import com.eva_cli.core.widgets.event.DispatchType
 import com.eva_cli.core.widgets.event.Event
 import kotlin.uuid.Uuid
 
@@ -18,11 +19,19 @@ class EchoDispatcher : PluginDispatcher() {
             "topic=$topic 必须且只能有一个 Provider，实际找到 ${providers.size} 个"
         }
         val provider = providers.values.single()
-        provider.receive(event)
+        record(event, DispatchType.HANDLE, provider)
+        try {
+            provider.receive(event)
+        } catch (failure: Throwable) {
+            runCatching { update(event) }.exceptionOrNull()?.let(failure::addSuppressed)
+            throw failure
+        }
+        update(event)
     }
 
     override suspend fun receive(event: Event) {
         if (!enable) return
         checkNotNull(emit) { "Bind EchoDispatcher.emit before forwarding events" }(event)
+        update(event)
     }
 }

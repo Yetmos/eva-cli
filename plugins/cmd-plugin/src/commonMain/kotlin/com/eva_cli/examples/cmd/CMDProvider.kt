@@ -2,6 +2,7 @@ package com.eva_cli.examples.cmd
 
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.EventRecord
+import com.eva_cli.core.widgets.event.Result
 import com.eva_cli.core.widgets.provider.PluginProvider
 import com.eva_cli.core.widgets.provider.Provider
 import kotlin.uuid.Uuid
@@ -50,7 +51,15 @@ class CMDProvider : PluginProvider(), CommandLineEndpoint {
 
     /** Dispatcher output uses the same endpoint contract as the host. */
     override suspend fun receive(event: Event) {
-        val text = (event.payload as? Event.Payload.Text)?.value ?: return
+        if (!enable || status == Provider.Status.STOP) return
+        val text = (event.payload as? Event.Payload.Text)?.value
+        if (text == null) {
+            record(event, Result.END, "CMD only supports text events")
+            update(event)
+            return
+        }
         write(text)
+        record(event, Result.DONE)
+        update(event)
     }
 }
