@@ -6,6 +6,7 @@
 
 插件开发可参考 [插件开发与打包文档](docs/PLUGIN_DEVELOPMENT.md) 和 [Echo Plugin 示例](plugins/echo-plugin/README.md)，
 其中包含最小入口、文本 Provider、插件清单、JVM JAR 加载测试及完整 `.eva` 发布任务。
+Event 记录的存储模型、生命周期和接入示例见 [Event 持久化文档](docs/EVENT_PERSISTENCE.md)。
 在本目录执行 `./gradlew :plugins:echo-plugin:assembleEvaPlugin`，即可生成包含独立源码工程、
 API 源码快照和 JVM 产物的发布包；解压后可以独立构建和重新打包。
 
