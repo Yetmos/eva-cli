@@ -43,7 +43,7 @@ val stageEvaPlugin = tasks.register<Sync>("stageEvaPlugin") {
             filteringCharset = "UTF-8"
         }
     } else {
-        // 鐙珛宸ョ▼閲嶆柊鍙戝竷鏃朵繚鐣欎綔鑰呭鏋勫缓閰嶇疆鐨勪慨鏀广€?
+        // 独立工程重新发布时保留作者对构建配置的修改。
         from(projectDir) {
             include("build.gradle.kts", "settings.gradle.kts", "gradle.properties")
             include("sdk/plugin-api/build.gradle.kts")
@@ -57,7 +57,7 @@ val stageEvaPlugin = tasks.register<Sync>("stageEvaPlugin") {
         include("libs.versions.toml", "wrapper/gradle-wrapper.jar", "wrapper/gradle-wrapper.properties")
         into("gradle")
     }
-    // 鍏变韩鎺ュ彛鍙綔涓虹嫭绔嬪伐绋嬬殑缂栬瘧杈撳叆锛沯vmJar 涓嶅皢瀹冧滑鎵撹繘鎻掍欢銆?
+    // 共享接口只作为独立工程的编译输入；jvmJar 不会将它们打进插件。
     from(apiSourceDirectory) {
         include("com/eva_cli/core/widgets/Widget.kt")
         include("com/eva_cli/core/widgets/BaseWidget.kt")
@@ -69,7 +69,7 @@ val stageEvaPlugin = tasks.register<Sync>("stageEvaPlugin") {
         include("com/eva_cli/core/widgets/plug/PluginEntry.kt")
         include("com/eva_cli/core/widgets/plug/PluginManifest.kt")
         if (coreProject == null) {
-            // 鐙珛宸ョ▼淇濈暀闅忓寘鎻愪緵鐨勬煡璇㈢紪璇戝叆鍙ｏ紝涓嶅鍒跺涓诲畨瑁呭櫒鍜屽姞杞藉櫒銆?
+            // 独立工程保留随包提供的查询编译入口，不复制宿主安装器和加载器。
             include("com/eva_cli/core/widgets/plug/PlugManager.kt")
         }
         into("sdk/plugin-api/src/commonMain/kotlin")

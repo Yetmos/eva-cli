@@ -78,7 +78,7 @@ class RootDispatcher : PluginDispatcher() {
     }
 
     private companion object {
-        /** Command Dispatcher 是宿主默认的事件报告端点。 */
+        /** 命令 Dispatcher 是宿主默认的事件报告端点。 */
         const val REPORTING_TOPIC = "/CMD"
     }
 }
