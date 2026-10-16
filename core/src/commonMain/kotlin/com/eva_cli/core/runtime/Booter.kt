@@ -1,21 +1,24 @@
 package com.eva_cli.core.runtime
 
 import com.eva_cli.core.widgets.dispatcher.Dispatcher
+import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.plug.PlugManager
+import kotlin.concurrent.Volatile
 
-// INFO: 该组件只负责启动 RootDispatcher, RootDispatcher负责启动Dispatcher树，不具备任何事件调度能力
+/** 启动并管理从已加载插件中选出的根调度器。 */
 object Booter {
+    @Volatile
     private var root: Dispatcher? = null
 
-    /** Whether a root dispatcher is currently retained by the runtime. */
+    /** 当前运行时是否持有根调度器。 */
     internal val isRunning: Boolean
         get() = root != null
 
-    /**
-     * 启动已加载插件中唯一 topic=/ 的根调度器，由其负责启动整棵树。
-     * 生命周期操作须串行调用；启动失败时保留根引用，须先 stop 清理再重试。
-     */
-    suspend fun start() {
+    /** 在运行时生命周期操作串行化的前提下启动根调度器。 */
+    suspend fun start() = RuntimeGate.withLock { startLocked() }
+
+    /** 在调用方已经持有 [RuntimeGate] 时启动根调度器。 */
+    internal suspend fun startLocked() {
         check(root == null) { "RootDispatcher 已启动或尚未清理，请先停止" }
         val roots = PlugManager.loadedList.flatMap { plugin ->
             plugin.dispatchers.filter { it.topic == "/" }
@@ -28,7 +31,11 @@ object Booter {
         dispatcher.start()
     }
 
-    suspend fun stop() {
+    /** 在运行时生命周期操作串行化的前提下停止根调度器。 */
+    suspend fun stop() = RuntimeGate.withLock { stopLocked() }
+
+    /** 在调用方已经持有 [RuntimeGate] 时停止根调度器。 */
+    internal suspend fun stopLocked() {
         val dispatcher = root ?: return
         try {
             dispatcher.stop()
@@ -37,19 +44,27 @@ object Booter {
         }
     }
 
-    /** 将宿主输入提交到已启动的根 Dispatcher。 */
-    suspend fun dispatch(event: com.eva_cli.core.widgets.event.Event) {
+    /** 将事件分发给已启动的根调度器。 */
+    suspend fun dispatch(event: Event) = RuntimeGate.withLock { dispatchLocked(event) }
+
+    /** 在调用方已经持有 [RuntimeGate] 时分发事件。 */
+    internal suspend fun dispatchLocked(event: Event) {
         checkNotNull(root) { "RootDispatcher 尚未启动" }.dispatch(event)
     }
 
-    // INFO: 备份整个决策树
-    suspend fun backup() {
+    /** 备份完整的调度器树。 */
+    suspend fun backup() = RuntimeGate.withLock { backupLocked() }
+
+    /** 在调用方已经持有 [RuntimeGate] 时备份调度器树。 */
+    internal suspend fun backupLocked() {
         checkNotNull(root) { "RootDispatcher 尚未启动" }.backupTree()
     }
 
-    // INFO: 恢复根调度器
-    suspend fun restore() {
+    /** 恢复完整的调度器树。 */
+    suspend fun restore() = RuntimeGate.withLock { restoreLocked() }
+
+    /** 在调用方已经持有 [RuntimeGate] 时恢复调度器树。 */
+    internal suspend fun restoreLocked() {
         checkNotNull(root) { "RootDispatcher 尚未启动" }.restore()
     }
-
 }

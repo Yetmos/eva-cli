@@ -2,7 +2,7 @@ package com.eva_cli.examples.root
 
 import com.eva_cli.core.widgets.plug.PluginEntry
 
-/** System entry point that supplies the single root dispatcher. */
+/** 提供唯一根 Dispatcher 的系统入口。 */
 class RootPlugin : PluginEntry {
     override val dispatchers = listOf(RootDispatcher())
 }

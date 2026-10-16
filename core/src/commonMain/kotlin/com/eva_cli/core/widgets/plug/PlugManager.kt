@@ -47,6 +47,16 @@ data class LoadedPlugin(
     val context: WidgetContext,
 )
 
+/**
+ * Plugin registry and file operations.
+ *
+ * The synchronous plugin operations intentionally do not acquire the
+ * runtime lifecycle gate. Hosts must serialize installation, loading,
+ * unloading, removal, backup, and restore with
+ * [com.eva_cli.core.runtime.Runtime.start] and
+ * [com.eva_cli.core.runtime.Runtime.stop]. File-changing operations must run while the runtime is
+ * stopped unless their contract explicitly permits otherwise.
+ */
 object PlugManager {
 
     /** 由宿主 UI 安装权限桥接；销毁时恢复默认值。CLI 默认不提供交互权限申请。 */

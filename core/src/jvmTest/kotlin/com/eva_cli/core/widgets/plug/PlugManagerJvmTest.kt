@@ -44,7 +44,7 @@ class PlugManagerJvmTest {
         Files.createDirectories(first.resolve("resources/empty"))
         Files.write(first.resolve("resources/data.bin"), byteArrayOf(0, 1, -1, 127))
         val source = Files.createDirectories(first.resolve("src/commonMain/kotlin"))
-        Files.writeString(source.resolve("Example.kt"), "// saved source")
+        Files.writeString(source.resolve("Example.kt"), "// 已保存的源代码")
         val expected = directoryContents(root.resolve("Plugins"))
         val data = Files.createDirectories(root.resolve("Data"))
         Files.writeString(data.resolve("keep.txt"), "runtime data")

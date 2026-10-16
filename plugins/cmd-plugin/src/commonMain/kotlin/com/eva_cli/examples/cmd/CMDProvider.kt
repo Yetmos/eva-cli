@@ -7,7 +7,7 @@ import com.eva_cli.core.widgets.provider.PluginProvider
 import com.eva_cli.core.widgets.provider.Provider
 import kotlin.uuid.Uuid
 
-/** Command-line input/output endpoint mounted at /CMD. */
+/** 挂载在 /CMD 的命令行输入输出端点。 */
 class CMDProvider : PluginProvider(), CommandLineEndpoint {
     override val id: Uuid = Uuid.parse("55555555-5555-4555-8555-555555555555")
     override val name = "CMD Provider"
@@ -49,7 +49,7 @@ class CMDProvider : PluginProvider(), CommandLineEndpoint {
         checkNotNull(outputHandler) { "Bind CMDProvider output before writing responses" }(text)
     }
 
-    /** Dispatcher output uses the same endpoint contract as the host. */
+    /** Dispatcher 输出使用与宿主相同的端点契约。 */
     override suspend fun receive(event: Event) {
         if (!enable || status == Provider.Status.STOP) return
         val text = (event.payload as? Event.Payload.Text)?.value

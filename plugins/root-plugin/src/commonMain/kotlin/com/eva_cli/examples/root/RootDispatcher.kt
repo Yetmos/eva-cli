@@ -8,7 +8,7 @@ import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.Result
 import kotlin.uuid.Uuid
 
-/** The system root for the plugin tree. */
+/** 插件树的系统根节点。 */
 class RootDispatcher : PluginDispatcher() {
     override val id: Uuid = Uuid.parse("11111111-1111-4111-8111-111111111111")
     override val name = "Root Dispatcher"
@@ -78,7 +78,7 @@ class RootDispatcher : PluginDispatcher() {
     }
 
     private companion object {
-        /** The command dispatcher is the host's default event reporting endpoint. */
+        /** Command Dispatcher 是宿主默认的事件报告端点。 */
         const val REPORTING_TOPIC = "/CMD"
     }
 }

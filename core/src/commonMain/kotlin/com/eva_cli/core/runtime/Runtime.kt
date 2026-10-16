@@ -1,44 +1,57 @@
 package com.eva_cli.core.runtime
 
-import com.eva_cli.core.widgets.plug.PlugManager
 import com.eva_cli.core.widgets.event.EventStore
+import com.eva_cli.core.widgets.plug.PlugManager
+import kotlin.concurrent.Volatile
 
-// 使用全局 IO 管理器；所有 Runtime 实例共享其启停状态。
+/** 宿主运行时生命周期协调器。 */
 object Runtime {
 
+    @Volatile
+    private var currentStatus: RuntimeStatus = RuntimeStatus.STOPPED
+
+    /** 当前宿主生命周期状态。 */
+    val status: RuntimeStatus
+        get() = currentStatus
+
     /**
-     * Loads installed plugins and starts the dispatcher tree.
-     *
-     * Calls must be serialized with other lifecycle and plugin-management
-     * operations. If the tree cannot start, the failed tree is stopped and
-     * only plugins loaded by this invocation are released.
+     * 加载已安装插件并启动调度器树。生命周期调用会被串行化，已完成的启动操作具备幂等性。
+     * [PlugManager] 的同步文件操作不受此门保护，宿主必须将其与生命周期操作串行执行。
      */
-    suspend fun start() {
-        Configure.start()
-        val previouslyLoaded = PlugManager.loadedList
-            .mapTo(mutableSetOf()) { it.manifest.id }
+    suspend fun start() = RuntimeGate.withLock {
+        if (currentStatus == RuntimeStatus.RUNNING) return@withLock
+        check(currentStatus == RuntimeStatus.STOPPED) {
+            "Runtime is already ${currentStatus.name.lowercase()}"
+        }
+
+        currentStatus = RuntimeStatus.STARTING
+        val previouslyLoaded = try {
+            Configure.start()
+            PlugManager.loadedList.mapTo(mutableSetOf()) { it.manifest.id }
+        } catch (error: Throwable) {
+            currentStatus = RuntimeStatus.STOPPED
+            throw error
+        }
         val booterWasRunning = Booter.isRunning
         try {
             Plugin.start()
-            Booter.start()
+            Booter.startLocked()
+            currentStatus = RuntimeStatus.RUNNING
         } catch (error: Throwable) {
-            // Booter retains a failed root so that it can be stopped and
-            // retried. Do not stop an already-running tree when a concurrent
-            // or repeated start attempt fails.
             if (!booterWasRunning) {
                 try {
-                    Booter.stop()
+                    Booter.stopLocked()
                 } catch (cleanupError: Throwable) {
                     if (error !== cleanupError) error.addSuppressed(cleanupError)
                 }
             }
 
-            val newlyLoaded = PlugManager.loadedList
-                .asSequence()
-                .map { it.manifest.id }
-                .filter { it !in previouslyLoaded }
-                .toSet()
             try {
+                val newlyLoaded = PlugManager.loadedList
+                    .asSequence()
+                    .map { it.manifest.id }
+                    .filter { it !in previouslyLoaded }
+                    .toSet()
                 Plugin.stopOnly(newlyLoaded)
             } catch (cleanupError: Throwable) {
                 if (error !== cleanupError) error.addSuppressed(cleanupError)
@@ -50,46 +63,38 @@ object Runtime {
                     if (error !== cleanupError) error.addSuppressed(cleanupError)
                 }
             }
+            currentStatus = RuntimeStatus.STOPPED
             throw error
         }
     }
 
     /**
-     * Stops the dispatcher tree, then releases every loaded plugin context and
-     * class loader. All releases are attempted; cleanup failures are
-     * aggregated and the first failure is rethrown. Repeated calls are safe.
+     * 停止调度器树、释放插件上下文并关闭运行时事件存储。所有清理步骤都会尝试执行，
+     * 失败会被聚合。重复调用是安全的。
      */
-    suspend fun stop() {
+    suspend fun stop() = RuntimeGate.withLock {
+        currentStatus = RuntimeStatus.STOPPING
         var failure: Throwable? = null
         try {
-            // Stop the component tree before closing the contexts that back it.
-            Booter.stop()
+            Booter.stopLocked()
         } catch (error: Throwable) {
             failure = error
         }
 
-        // Always release plugin contexts and class loaders, even if a
-        // dispatcher failed while stopping.  Plugin.stop is idempotent, so a
-        // repeated Runtime.stop() is a no-op after this point.
         try {
             Plugin.stop()
         } catch (error: Throwable) {
-            if (failure == null) {
-                failure = error
-            } else if (failure !== error) {
-                failure.addSuppressed(error)
-            }
+            if (failure == null) failure = error
+            else if (failure !== error) failure.addSuppressed(error)
         }
         try {
             EventStore.closeRuntime()
         } catch (error: Throwable) {
-            if (failure == null) {
-                failure = error
-            } else if (failure !== error) {
-                failure.addSuppressed(error)
-            }
+            if (failure == null) failure = error
+            else if (failure !== error) failure.addSuppressed(error)
         }
+
+        currentStatus = RuntimeStatus.STOPPED
         failure?.let { throw it }
     }
-
 }

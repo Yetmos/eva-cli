@@ -10,7 +10,7 @@ import com.eva_cli.core.widgets.provider.PluginProvider
 import com.eva_cli.testplugins.dependencies.PrivateDependency
 import kotlin.uuid.Uuid
 
-/** These classes are packaged into real test JARs, separate from the host API. */
+/** 这些类会被打包到真实的测试 JAR 中，与宿主 API 分开。 */
 class LoadingEntry : PluginEntry {
     override val providers = mutableListOf<PluginProvider>(LoadingProvider())
     override val dispatchers = mutableListOf<PluginDispatcher>(LoadingDispatcher())
@@ -62,7 +62,7 @@ class QueryEntry : PluginEntry {
     override val dispatchers = listOf(
         "/Zoo", "/", "/Room", "/Room/Second", "/Room/First", "/Room/First/Grandchild",
         "/Roommate/Other", "/room/Child", "/Room/Second",
-        // Malformed candidates must never become root or nested children.
+        // 格式错误的候选项绝不能成为根节点或嵌套子节点。
         "", "relative", "//Room", "/Room/", "/Room//Child", "/Room/.", "/Room/..",
         "/Room/ padded", "/Room/trailing ", "/Room/\tcontrol", "/Room/back\\slash",
         "/.", "/..", "/ leading", "/trailing ", "/back\\slash",
@@ -86,7 +86,7 @@ class BootEntry : PluginEntry {
     override val dispatchers = listOf(BootDispatcher("/Child"), BootDispatcher("/"))
 }
 
-/** A non-root dispatcher that can participate in the host tree during lifecycle tests. */
+/** 非根 Dispatcher，可在生命周期测试中加入宿主树。 */
 class QuietEntry : PluginEntry {
     override val dispatchers = listOf(QuietDispatcher("/Quiet"))
 }

@@ -6,7 +6,7 @@ import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.event.TextEvent
 import kotlin.uuid.Uuid
 
-/** Parses command lines and forwards command results to CMDProvider. */
+/** 解析命令行，并将命令结果转发给 CMDProvider。 */
 class CMDDispatcher : PluginDispatcher() {
     override val id: Uuid = Uuid.parse("44444444-4444-4444-8444-444444444444")
     override val name = "CMD Dispatcher"

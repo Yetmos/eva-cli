@@ -69,7 +69,7 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.uuid.Uuid
 
-/** Shared through the host API class loader to exercise constructor reentrancy. */
+/** 通过宿主 API 类加载器共享，用于验证构造函数的可重入行为。 */
 object LoadingFixtureHooks {
     @Volatile
     var onConstruct: (() -> Unit)? = null
@@ -361,7 +361,7 @@ class PlugManagerLoadingJvmTest {
             )
             assertTrue(PlugManager.loadedList.isEmpty())
 
-            // A second shutdown must be safe after both the dispatcher tree and plugins are gone.
+            // Dispatcher 树和插件都清理后，第二次关闭也必须安全。
             RuntimeState.stop()
             assertTrue(PlugManager.loadedList.isEmpty())
             assertEquals(8, events.size)
@@ -389,7 +389,7 @@ class PlugManagerLoadingJvmTest {
                     failure.cause?.message.orEmpty().contains("database close failed") ||
                     failure.suppressed.any { it.message.orEmpty().contains("database close failed") },
             )
-            // The failing close is reported, but every registration and class loader is still released.
+            // 报告关闭失败，但仍然要释放所有注册项和类加载器。
             assertTrue(PlugManager.loadedList.isEmpty())
             RuntimeState.stop()
         }
@@ -1126,7 +1126,7 @@ class PlugManagerLoadingJvmTest {
         LoadingDispatcher::class.java,
         BootDispatcher::class.java,
         QuietDispatcher::class.java,
-        // Deliberately bundled API duplicates must still resolve to the host definitions.
+        // 有意打包的 API 重复类仍必须解析到宿主定义。
         PluginEntry::class.java,
         Event::class.java,
         WidgetContext::class.java,
@@ -1155,7 +1155,7 @@ class PlugManagerLoadingJvmTest {
         }
     }
 
-    /** Include compiler-generated nested classes, including coroutine continuations. */
+    /** 包含编译器生成的嵌套类，包括协程 continuation。 */
     private fun compiledClasses(type: Class<*>): Map<String, ByteArray> {
         val resource = type.name.replace('.', '/') + ".class"
         val location = checkNotNull(type.classLoader.getResource(resource))
@@ -1202,8 +1202,8 @@ class PlugManagerLoadingJvmTest {
             LoadingFixtureHooks.onConstruct = null
             LoadingFixtureHooks.onLifecycle = null
             runBlocking { Booter.stop() }
-            // The resource-close failure test intentionally leaves a failing
-            // database; cleanup must still restore global test state.
+            // 资源关闭失败测试会故意留下一个关闭失败的数据库；
+            // 清理仍必须恢复全局测试状态。
             PlugManager.loadedList.toList().forEach { plugin ->
                 runCatching { PlugManager.unloadPlugin(plugin.manifest.id) }
             }

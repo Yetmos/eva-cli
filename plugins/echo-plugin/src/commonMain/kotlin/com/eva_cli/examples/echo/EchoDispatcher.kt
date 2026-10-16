@@ -5,7 +5,7 @@ import com.eva_cli.core.widgets.event.DispatchType
 import com.eva_cli.core.widgets.event.Event
 import kotlin.uuid.Uuid
 
-/** Routes events on /Echo to the plugin's single Echo provider. */
+/** 将 /Echo 上的事件路由到插件唯一的 Echo Provider。 */
 class EchoDispatcher : PluginDispatcher() {
     override val id: Uuid = Uuid.parse("22222222-2222-4222-8222-222222222222")
     override val name = "Echo Dispatcher"

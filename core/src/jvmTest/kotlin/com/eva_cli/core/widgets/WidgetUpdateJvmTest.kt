@@ -53,7 +53,7 @@ class WidgetUpdateJvmTest {
         assertSame(handleRecord, provider.records.single())
         assertEquals(Action.Handle(Result.DONE, "handled"), handleRecord.action)
         provider.update(event)
-        // The receiving dispatcher saves again after the provider returns.
+        // Provider 返回后，接收方 Dispatcher 会再次保存事件。
         dispatcher.update(event)
         provider.update(event)
         assertEquals(listOf(dispatchRecord, handleRecord), event.records)

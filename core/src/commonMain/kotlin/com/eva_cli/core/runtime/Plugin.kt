@@ -45,22 +45,19 @@ object Plugin {
     }
 
     /**
-     * Stops the plugin runtime state by releasing every loaded plugin.
+     * 释放所有已加载插件，停止插件运行时状态。
      *
-     * Component lifecycle callbacks are owned by [Booter].  This method is
-     * deliberately limited to unloading the plugin registrations so that it
-     * can also clean up plugins which were loaded but never attached to a
-     * dispatcher tree. Plugins are released in reverse registry order and
-     * every release is attempted even when another release fails.
+     * 组件生命周期回调由 [Booter] 负责。此方法只卸载插件注册信息，
+     * 因此也能清理已加载但尚未挂接到调度器树的插件。插件按注册顺序逆序释放，
+     * 即使某个插件释放失败，也会继续尝试释放其他插件。
      */
     fun stop() {
         unloadPlugins(PlugManager.loadedList.asReversed())
     }
 
     /**
-     * Releases only the plugins loaded by a particular start attempt.  The
-     * runtime uses this when startup fails so plugins that were already loaded
-     * by the caller remain available.
+     * 只释放某次启动尝试加载的插件。运行时会在启动失败时调用此方法，
+     * 这样调用方在启动前已经加载的插件仍然可用。
      */
     internal fun stopOnly(pluginIds: Set<String>) {
         if (pluginIds.isEmpty()) return
