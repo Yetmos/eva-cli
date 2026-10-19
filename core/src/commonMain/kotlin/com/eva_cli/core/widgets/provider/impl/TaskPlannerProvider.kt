@@ -6,7 +6,7 @@ import com.eva_cli.core.widgets.provider.PluginProvider
 import com.eva_cli.core.widgets.provider.Provider
 import kotlinx.coroutines.CancellationException
 
-/** Context passed to one task step implementation. */
+/** 传递给单个任务步骤实现的上下文。 */
 data class TaskExecutionContext(
     val request: PlanRequest,
     val plan: PlanResult,
@@ -28,12 +28,11 @@ data class TaskRunResult(
 )
 
 /**
- * Core task-planning Provider that plugins can inherit.
+ * 供插件继承的核心任务规划 Provider。
  *
- * The base class owns the plan -> execute -> check flow. A plugin normally
- * overrides [planner] and [checker], then either supplies a [taskProvider] or
- * overrides [executeStep] for inline execution. The plugin also supplies the
- * regular Widget metadata required by [PluginProvider].
+ * 基类负责计划 -> 执行 -> 检查流程。插件通常覆盖 [planner] 和 [checker]，
+ * 然后提供 [taskProvider]，或覆盖 [executeStep] 以内置方式执行步骤。
+ * 插件还需要提供 [PluginProvider] 要求的常规 Widget 元数据。
  */
 abstract class TaskPlannerProvider : PluginProvider() {
     override var status: Provider.Status = Provider.Status.STOP
@@ -60,23 +59,23 @@ abstract class TaskPlannerProvider : PluginProvider() {
         status = Provider.Status.STOP
     }
 
-    /** Hook for a plugin to start an injected external capability. */
+    /** 插件启动注入的外部能力时使用的扩展钩子。 */
     protected open suspend fun onStart() = Unit
 
-    /** Hook for a plugin to stop an injected external capability. */
+    /** 插件停止注入的外部能力时使用的扩展钩子。 */
     protected open suspend fun onStop() = Unit
 
-    /** Converts the default text event into a planning request. */
+    /** 将默认文本事件转换为规划请求。 */
     protected open fun requestFrom(event: Event): PlanRequest? =
         (event.payload as? Event.Payload.Text)?.let {
             PlanRequest(input = it.value, event = event)
         }
 
-    /** Executes one step when no external [taskProvider] is supplied. */
+    /** 未提供外部 [taskProvider] 时执行单个步骤。 */
     protected open suspend fun executeStep(context: TaskExecutionContext): Any? =
         context.step.payload ?: context.step.description
 
-    /** Runs planning, task execution and checking without requiring an Event. */
+    /** 无需 Event 即可运行规划、任务执行和检查流程。 */
     suspend fun run(request: PlanRequest): TaskRunResult {
         check(status != Provider.Status.STOP) {
             "TaskPlannerProvider must be started before running a task"
@@ -138,8 +137,7 @@ abstract class TaskPlannerProvider : PluginProvider() {
             if (provider == null) {
                 TaskResult(TaskState.SUCCEEDED, value = executeStep(context))
             } else {
-                // Execute through the capability contract so external providers can
-                // apply their own queueing, retry, timeout, and tool integration.
+                // 通过能力契约执行，使外部 Provider 可以应用自己的排队、重试、超时和工具集成策略。
                 provider.execute(context.step, context)
             }
         } catch (cancelled: CancellationException) {
@@ -174,6 +172,6 @@ abstract class TaskPlannerProvider : PluginProvider() {
         }
     }
 
-    /** Hook for a plugin to emit a domain-specific result event. */
+    /** 插件发送领域专用结果事件时使用的扩展钩子。 */
     protected open suspend fun onResult(event: Event, result: TaskRunResult) = Unit
 }

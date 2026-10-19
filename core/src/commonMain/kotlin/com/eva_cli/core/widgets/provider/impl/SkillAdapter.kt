@@ -2,7 +2,7 @@ package com.eva_cli.core.widgets.provider.impl
 
 import kotlinx.serialization.json.JsonObject
 
-/** Host supplied execution boundary for a Skill. */
+/** 由宿主提供的 Skill 执行边界。 */
 fun interface SkillExecutor {
     suspend fun execute(skillId: String, arguments: JsonObject): ToolResult
 }
@@ -17,8 +17,8 @@ data class SkillDefinition(
 )
 
 /**
- * Adapter for declarative/local skills. The actual script, process or model call is
- * supplied by [SkillExecutor], so common code never shells out or bypasses host policy.
+ * 声明式或本地 Skill 的适配器。实际脚本、进程或模型调用由 [SkillExecutor] 提供，
+ * 因此公共代码不会直接启动外部进程或绕过宿主策略。
  */
 abstract class SkillAdapter : ToolProvider() {
     protected abstract val skills: List<SkillDefinition>

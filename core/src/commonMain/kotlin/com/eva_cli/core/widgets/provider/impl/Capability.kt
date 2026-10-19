@@ -2,10 +2,10 @@ package com.eva_cli.core.widgets.provider.impl
 
 import kotlinx.serialization.json.JsonObject
 
-/** The source-independent kind of a registered capability. */
+/** 已注册能力的、与来源无关的类型。 */
 enum class CapabilityKind { PLANNER, TASK, CHECKER, TOOL, SKILL, MCP }
 
-/** Metadata used by a host when selecting and auditing an implementation. */
+/** 供宿主选择和审计实现的元数据。 */
 data class CapabilityDescriptor(
     val id: String,
     val version: String = "1",
@@ -27,14 +27,14 @@ enum class CapabilityErrorCode {
     CHECK_FAILED,
 }
 
-/** Stable error categories exposed by adapters; transports may be wrapped as [cause]. */
+/** 适配器暴露的稳定错误分类；底层传输错误可以包装在 [cause] 中。 */
 class CapabilityException(
     val code: CapabilityErrorCode,
     override val message: String,
     override val cause: Throwable? = null,
 ) : Exception(message, cause)
 
-/** A small host-level registry. A task should resolve and pin an implementation once. */
+/** 轻量宿主级注册表；任务应在开始时解析并固定一个实现。 */
 class CapabilityResolver {
     private val entries = linkedMapOf<String, Entry<*>>()
 

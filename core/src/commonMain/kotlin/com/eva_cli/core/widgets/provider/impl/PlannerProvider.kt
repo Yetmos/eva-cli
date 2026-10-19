@@ -34,7 +34,7 @@ data class Plan(
     val complete: Boolean = true,
 )
 
-/** Backwards-compatible name used by early plugin implementations. */
+/** 早期插件实现使用的兼容名称。 */
 typealias PlanResult = Plan
 
 /** 由规划类 Provider 实现的领域操作。 */

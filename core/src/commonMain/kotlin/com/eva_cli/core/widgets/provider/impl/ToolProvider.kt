@@ -34,19 +34,19 @@ data class ToolDefinition(
     val name: String = descriptor.id,
     val description: String = "",
     val timeoutMillis: Long? = null,
-    /** Optional lightweight validator. Full JSON Schema validation belongs to the host. */
+    /** 可选的轻量校验器；完整 JSON Schema 校验由宿主负责。 */
     val validate: (JsonObject) -> Boolean = { true },
 )
 
-/** Common execution surface for local tools and remote adapters. */
+/** 本地工具和远程适配器共用的执行接口。 */
 interface ToolCapability {
     val tools: List<ToolDefinition>
     suspend fun invoke(request: ToolRequest): ToolResult
 }
 
 /**
- * Provider base for tools. It owns validation, permission checks and timeout mapping;
- * subclasses only register definitions and handlers.
+ * 工具 Provider 基类。它负责输入校验、权限检查和超时映射；
+ * 子类只需注册定义和处理器。
  */
 abstract class ToolProvider : PluginProvider(), ToolCapability {
     override var status: Provider.Status = Provider.Status.STOP

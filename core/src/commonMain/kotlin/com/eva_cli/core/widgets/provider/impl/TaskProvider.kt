@@ -63,9 +63,23 @@ interface TaskCapability {
 
     fun taskResult(handle: TaskHandle): TaskResult? = result(handle)
 
-    /** Step-oriented execution hook used by [TaskPlannerProvider]. */
-    suspend fun execute(step: PlanStep, context: TaskExecutionContext): TaskResult =
-        TaskResult(TaskState.SUCCEEDED)
+    /** [TaskPlannerProvider] 使用的步骤执行钩子。 */
+    suspend fun execute(step: PlanStep, context: TaskExecutionContext): TaskResult {
+        val handle = submit(
+            TaskRequest(step.id, context.event, step.context),
+        ) { step.payload ?: step.description }
+        while (true) {
+            val result = result(handle)
+            if (result != null && result.state in setOf(
+                    TaskState.SUCCEEDED,
+                    TaskState.FAILED,
+                    TaskState.CANCELLED,
+                )
+            ) return result
+            check(state(handle) != null) { "Task provider lost handle: $handle" }
+            delay(1)
+        }
+    }
 }
 
 /**
@@ -152,10 +166,9 @@ abstract class TaskProvider : PluginProvider(), TaskCapability {
     }
 
     /**
-     * Default step execution for a plain [TaskProvider]. Specialized providers
-     * should override this method when a step invokes tools, skills, or remote
-     * services. The default keeps the capability useful by executing the step
-     * payload (or description) through the provider's coroutine queue.
+     * 普通 [TaskProvider] 的默认步骤执行方式。步骤需要调用工具、Skill 或远程服务时，
+     * 专用 Provider 应覆盖此方法。默认实现会通过 Provider 的协程队列执行步骤负载，
+     * 如果没有负载则执行步骤描述。
      */
     override suspend fun execute(step: PlanStep, context: TaskExecutionContext): TaskResult {
         val handle = submit(

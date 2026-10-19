@@ -11,7 +11,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
-/** Minimal JSON-RPC transport. HTTP, SSE and stdio implementations belong to a plugin/host. */
+/** 最小 JSON-RPC 传输接口；HTTP、SSE 和 stdio 实现由插件或宿主提供。 */
 interface McpTransport {
     suspend fun request(method: String, params: JsonObject = JsonObject(emptyMap())): JsonObject
     suspend fun notify(method: String, params: JsonObject = JsonObject(emptyMap())) {
@@ -20,7 +20,7 @@ interface McpTransport {
     suspend fun close() = Unit
 }
 
-/** JSON-RPC over the host network boundary. It deliberately does not bypass PluginNetwork. */
+/** 通过宿主网络边界传输 JSON-RPC；不会绕过 PluginNetwork。 */
 class HttpMcpTransport(
     private val network: PluginNetwork,
     private val endpoint: String,
@@ -81,7 +81,7 @@ class HttpMcpTransport(
     }
 }
 
-/** MCP client adapter that exposes server tools through [ToolCapability]. */
+/** MCP 客户端适配器，将服务端工具暴露为 [ToolCapability]。 */
 abstract class McpAdapter : ToolProvider() {
     protected abstract suspend fun createTransport(): McpTransport
 
@@ -125,7 +125,18 @@ abstract class McpAdapter : ToolProvider() {
                             put("arguments", arguments)
                         },
                     )
-                    ToolResult.success(response["content"] ?: response["structuredContent"], response["isError"]?.jsonPrimitive?.content)
+                    val detail = response["isError"]?.jsonPrimitive?.content
+                    if (detail == "true") {
+                        ToolResult.failure(
+                            CapabilityErrorCode.EXECUTION_FAILED,
+                            response["content"]?.toString() ?: "MCP tool execution failed",
+                        )
+                    } else {
+                        ToolResult.success(
+                            response["content"] ?: response["structuredContent"],
+                            detail,
+                        )
+                    }
                 }
             }
             transport = connection
