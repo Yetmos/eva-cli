@@ -12,3 +12,5 @@ Dispatcher 路由、`WidgetContext` 绑定和记录持久化。
 `InputCapability` 和 `OutputCapability` 提供安全的默认结果，适合只参与通用生命周期的 Provider。
 `TimerProvider` 的调度器在 `start()` 时创建，并在 `stop()` 时取消；调用 `schedule` 前必须先启动 Provider。
 
+任务编排能力的内置、外置和混合实现见 [TaskPlanner 架构方案](TaskPlanner架构.md)。
+

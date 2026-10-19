@@ -4,9 +4,11 @@
 
 当前提供 `Eva` 与 `Runtime` 基础入口，以及通过 CMD 插件处理文本命令的 CLI 模式。agent 编排、脚本执行与沙盒功能尚未实现。
 
-插件开发可参考 [插件开发与打包文档](docs/PLUGIN_DEVELOPMENT.md) 和 [Echo Plugin 示例](plugins/echo-plugin/README.md)，
+插件开发可参考 [插件开发与打包文档](docs/插件开发与打包.md) 和 [Echo Plugin 示例](plugins/echo-plugin/README.md)，
 其中包含最小入口、文本 Provider、插件清单、JVM JAR 加载测试及完整 `.eva` 发布任务。
-Event 记录的存储模型、生命周期和接入示例见 [Event 持久化文档](docs/EVENT_PERSISTENCE.md)。
+Event 记录的存储模型、生命周期和接入示例见 [Event 持久化文档](docs/Event持久化.md)。
+任务编排的 `TaskPlannerProvider`、内置能力、外置 Provider、MCP、Skill 和 Tools 接入方案见
+[TaskPlanner 架构文档](docs/TaskPlanner架构.md)。
 在本目录执行 `./gradlew :plugins:echo-plugin:assembleEvaPlugin`，即可生成包含独立源码工程、
 API 源码快照和 JVM 产物的发布包；解压后可以独立构建和重新打包。
 
