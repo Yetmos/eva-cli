@@ -1,5 +1,6 @@
 package com.eva_cli.core.widgets.provider.impl
 
+import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.provider.PluginProvider
 import com.eva_cli.core.widgets.provider.Provider
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +49,8 @@ interface TimerCapability {
  */
 abstract class TimerProvider : PluginProvider(), TimerCapability {
     override var status: Provider.Status = Provider.Status.STOP
+
+    override suspend fun receive(event: Event) = Unit
 
     private var timerScope: CoroutineScope? = null
     private val jobs = mutableMapOf<TimerHandle, Job>()

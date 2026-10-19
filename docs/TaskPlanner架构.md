@@ -105,29 +105,66 @@ TaskPlannerProvider
 
 `TaskPlannerProvider` 不直接实例化插件对象或 MCP 客户端，而是通过 `CapabilityResolver` 获取已注册的能力实现。
 
-## 在插件中实现 TaskPlannerProvider
+## MCP Adapter、Skill Adapter 和 Tool Provider
 
-插件中的 `TaskPlannerProvider` 应继承 `PluginProvider`，并通过 `PluginEntry.providers` 暴露给宿主。根 `Dispatcher` 将任务事件直接路由到这个 Provider；插件内部不需要增加 `TaskDispatcher`。
+核心模块提供三层可复用 API，文件位于 `core/.../provider/impl`：
 
-一个插件可以在入口对象中组合任务规划器及其能力实现：
+1. `ToolProvider` 管理 `ToolDefinition` 注册表，统一做输入校验、权限检查、超时、取消和错误分类。子类只需要调用 `registerTool(definition) { arguments -> ... }`。
+2. `McpAdapter` 在 `start()` 中创建 `McpTransport`，发送 `initialize`、`notifications/initialized` 和 `tools/list`，把服务端工具注册为本地 Tool；调用时把 `ToolRequest` 转成 `tools/call`。HTTP 场景可直接使用 `HttpMcpTransport(context.network, endpoint)`，网络策略仍由宿主控制。
+3. `SkillAdapter` 把 `SkillDefinition` 映射为 Tool，实际脚本、进程或模型调用通过注入的 `SkillExecutor` 执行。这样 Skill 不会绕过宿主的文件、网络和权限边界。
+
+示例：
 
 ```kotlin
-class AgentTaskPlugin : PluginEntry {
-    private val planner = ModelPlanner()
-    private val executor = ToolTaskExecutor()
-    private val checker = TaskChecker()
-
-    private val taskPlanner = TaskPlannerProvider(
-        planner = planner,
-        executor = executor,
-        checker = checker,
+class WorkspaceSkills : SkillAdapter() {
+    override val skills = listOf(
+        SkillDefinition(
+            id = "workspace.search",
+            description = "Search files in the workspace",
+            permissions = setOf("files.read"),
+            timeoutMillis = 5_000,
+        ),
     )
+
+    override val executor = SkillExecutor { id, arguments ->
+        // 在这里调用宿主允许的执行器，并返回 ToolResult。
+        ToolResult.success()
+    }
+}
+```
+
+适配器不负责任务状态机。它们通过 `PluginEntry.providers` 暴露，宿主先 `attach`、再 `start`，关闭时调用 `stop`。能力注册时保存 `CapabilityDescriptor` 的 ID 和版本；一个任务开始后固定解析到的版本，避免运行中途更换实现。
+
+## 在插件中实现 TaskPlannerProvider
+
+插件中的 `TaskPlannerProvider` 应继承 core 提供的基类，并通过 `PluginEntry.providers` 暴露给宿主。根 `Dispatcher` 将任务事件直接路由到这个 Provider；插件内部不需要增加 `TaskDispatcher`。
+
+插件通过继承基类并覆盖能力属性来组合任务规划器及其实现：
+
+```kotlin
+class AgentTaskPlanner : TaskPlannerProvider() {
+    override val planner: PlannerCapability = ModelPlanner()
+    override val taskProvider: TaskCapability = ToolTaskExecutor()
+    override val checker: CheckerCapability = TaskChecker()
+
+    // 公开的 Widget 元数据仍由插件按现有约定实现。
+    override val id = Uuid.random()
+    override val name = "Agent task planner"
+    override val desc = "Plans and executes agent tasks"
+    override val topic = "/Agent/TaskPlanner"
+    override var enable = true
+    override var records = emptyList<EventRecord>()
+    override var emit: (suspend (Event) -> Unit)? = null
+}
+
+class AgentTaskPlugin : PluginEntry {
+    private val taskPlanner = AgentTaskPlanner()
 
     override val providers = listOf(taskPlanner)
 }
 ```
 
-上面的代码是架构示意，`ModelPlanner`、`ToolTaskExecutor`、`TaskChecker` 和 `TaskPlannerProvider` 需要由实际插件实现或由共享 API 提供。入口类仍然遵守现有插件约定：公开、无参构造器，并且在 `providers` 中复用固定的组件实例。
+`ModelPlanner`、`ToolTaskExecutor` 和 `TaskChecker` 分别实现 `PlannerCapability`、`TaskCapability` 和 `CheckerCapability`。如果它们本身也是 `PlannerProvider`、`TaskProvider` 或 `CheckerProvider`，插件可以把同一实例一并放入 `providers`，由宿主管理其生命周期。入口类仍然遵守现有插件约定：公开、无参构造器，并且在 `providers` 中复用固定的组件实例。
 
 `TaskPlannerProvider` 的职责包括：
 

@@ -65,6 +65,16 @@ interface IOCapability : InputCapability, OutputCapability
  */
 abstract class IOProvider : PluginProvider(), IOCapability {
     override var status: Provider.Status = Provider.Status.STOP
+
+    override suspend fun start() {
+        status = Provider.Status.IDLE
+    }
+
+    override suspend fun stop() {
+        status = Provider.Status.STOP
+    }
+
+    override suspend fun receive(event: Event) = Unit
 }
 
 /** 仅支持输入适配器的 Provider 类型。 */
