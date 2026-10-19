@@ -1,5 +1,9 @@
-package com.eva_cli.core.widgets.provider.impl
+package com.eva_cli.core.widgets.provider.impl.tool
 
+import com.eva_cli.core.widgets.provider.impl.CapabilityDescriptor
+import com.eva_cli.core.widgets.provider.impl.CapabilityErrorCode
+import com.eva_cli.core.widgets.provider.impl.CapabilityException
+import com.eva_cli.core.widgets.provider.impl.CapabilityKind
 import com.eva_cli.core.widgets.context.NetworkRequest
 import com.eva_cli.core.widgets.context.PluginNetwork
 import kotlinx.serialization.json.Json

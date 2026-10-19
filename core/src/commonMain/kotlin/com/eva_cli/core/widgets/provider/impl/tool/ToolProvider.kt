@@ -1,5 +1,9 @@
-package com.eva_cli.core.widgets.provider.impl
+package com.eva_cli.core.widgets.provider.impl.tool
 
+import com.eva_cli.core.widgets.provider.impl.CapabilityDescriptor
+import com.eva_cli.core.widgets.provider.impl.CapabilityErrorCode
+import com.eva_cli.core.widgets.provider.impl.CapabilityException
+import com.eva_cli.core.widgets.provider.impl.CapabilityKind
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.provider.PluginProvider
 import com.eva_cli.core.widgets.provider.Provider
@@ -93,8 +97,11 @@ abstract class ToolProvider : PluginProvider(), ToolCapability {
 
     override suspend fun stop() {
         if (status == Provider.Status.STOP) return
-        onStop()
-        status = Provider.Status.STOP
+        try {
+            onStop()
+        } finally {
+            status = Provider.Status.STOP
+        }
     }
 
     protected open suspend fun onStart() = Unit

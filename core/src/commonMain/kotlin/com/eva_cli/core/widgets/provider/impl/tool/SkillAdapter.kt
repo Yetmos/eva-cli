@@ -1,5 +1,7 @@
-package com.eva_cli.core.widgets.provider.impl
+package com.eva_cli.core.widgets.provider.impl.tool
 
+import com.eva_cli.core.widgets.provider.impl.CapabilityDescriptor
+import com.eva_cli.core.widgets.provider.impl.CapabilityKind
 import kotlinx.serialization.json.JsonObject
 
 /** 由宿主提供的 Skill 执行边界。 */

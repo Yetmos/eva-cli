@@ -107,11 +107,11 @@ TaskPlannerProvider
 
 ## MCP Adapter、Skill Adapter 和 Tool Provider
 
-核心模块提供三层可复用 API，文件位于 `core/.../provider/impl`：
+核心模块提供三层可复用 API，任务实现（包括 Planner、Task、Checker、TaskPlanner 和 Timer）位于 `core/.../provider/impl/task`，工具和输入输出适配器位于 `core/.../provider/impl/tool`，共享能力描述位于 `core/.../provider/impl/Capability.kt`：
 
-1. `ToolProvider` 管理 `ToolDefinition` 注册表，统一做输入校验、权限检查、超时、取消和错误分类。子类只需要调用 `registerTool(definition) { arguments -> ... }`。
-2. `McpAdapter` 在 `start()` 中创建 `McpTransport`，发送 `initialize`、`notifications/initialized` 和 `tools/list`，把服务端工具注册为本地 Tool；调用时把 `ToolRequest` 转成 `tools/call`。HTTP 场景可直接使用 `HttpMcpTransport(context.network, endpoint)`，网络策略仍由宿主控制。
-3. `SkillAdapter` 把 `SkillDefinition` 映射为 Tool，实际脚本、进程或模型调用通过注入的 `SkillExecutor` 执行。这样 Skill 不会绕过宿主的文件、网络和权限边界。
+1. `impl/tool/ToolProvider.kt` 管理 `ToolDefinition` 注册表，统一做输入校验、权限检查、超时、取消和错误分类。子类只需要调用 `registerTool(definition) { arguments -> ... }`。
+2. `impl/tool/McpAdapter.kt` 在 `start()` 中创建 `McpTransport`，发送 `initialize`、`notifications/initialized` 和 `tools/list`，把服务端工具注册为本地 Tool；调用时把 `ToolRequest` 转成 `tools/call`。HTTP 场景可直接使用 `HttpMcpTransport(context.network, endpoint)`，网络策略仍由宿主控制。
+3. `impl/tool/SkillAdapter.kt` 把 `SkillDefinition` 映射为 Tool，实际脚本、进程或模型调用通过注入的 `SkillExecutor` 执行。这样 Skill 不会绕过宿主的文件、网络和权限边界。
 
 示例：
 

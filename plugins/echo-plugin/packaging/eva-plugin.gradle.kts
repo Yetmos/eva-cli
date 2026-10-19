@@ -65,6 +65,8 @@ val stageEvaPlugin = tasks.register<Sync>("stageEvaPlugin") {
         include("com/eva_cli/core/widgets/event/*.kt")
         include("com/eva_cli/core/widgets/provider/*.kt")
         include("com/eva_cli/core/widgets/provider/impl/*.kt")
+        include("com/eva_cli/core/widgets/provider/impl/task/*.kt")
+        include("com/eva_cli/core/widgets/provider/impl/tool/*.kt")
         include("com/eva_cli/core/widgets/dispatcher/*.kt")
         include("com/eva_cli/core/widgets/plug/Plugin.kt")
         include("com/eva_cli/core/widgets/plug/PluginEntry.kt")
