@@ -41,7 +41,7 @@ interface InputCapability {
     /** 读取一个值。返回 null 表示当前没有可读取的值。 */
     suspend fun input(request: InputRequest = InputRequest()): InputResult? = null
 
-    /** 面向使用常见流式术语的集成场景提供的读取别名。 */
+
     suspend fun read(request: InputRequest = InputRequest()): InputResult? = input(request)
 }
 
