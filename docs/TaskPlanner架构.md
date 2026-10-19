@@ -105,6 +105,53 @@ TaskPlannerProvider
 
 `TaskPlannerProvider` 不直接实例化插件对象或 MCP 客户端，而是通过 `CapabilityResolver` 获取已注册的能力实现。
 
+## 在插件中实现 TaskPlannerProvider
+
+插件中的 `TaskPlannerProvider` 应继承 `PluginProvider`，并通过 `PluginEntry.providers` 暴露给宿主。根 `Dispatcher` 将任务事件直接路由到这个 Provider；插件内部不需要增加 `TaskDispatcher`。
+
+一个插件可以在入口对象中组合任务规划器及其能力实现：
+
+```kotlin
+class AgentTaskPlugin : PluginEntry {
+    private val planner = ModelPlanner()
+    private val executor = ToolTaskExecutor()
+    private val checker = TaskChecker()
+
+    private val taskPlanner = TaskPlannerProvider(
+        planner = planner,
+        executor = executor,
+        checker = checker,
+    )
+
+    override val providers = listOf(taskPlanner)
+}
+```
+
+上面的代码是架构示意，`ModelPlanner`、`ToolTaskExecutor`、`TaskChecker` 和 `TaskPlannerProvider` 需要由实际插件实现或由共享 API 提供。入口类仍然遵守现有插件约定：公开、无参构造器，并且在 `providers` 中复用固定的组件实例。
+
+`TaskPlannerProvider` 的职责包括：
+
+- 接收任务事件并创建任务实例；
+- 调用 Planner 生成 `Plan` 和 `TodoItem`；
+- 按步骤调用 Task 能力并更新 `TaskState`；
+- 调用 Checker 验证参数和执行结果；
+- 处理重试、暂停、恢复、取消和超时；
+- 持久化任务状态，并通过 `emit` 返回结果事件。
+
+如果 Planner、Task 和 Checker 只在当前插件内部使用，建议实现为普通能力对象。只有在某个能力需要独立生命周期、独立持久化、被多个组件复用或由宿主动态替换时，才将它们分别实现为 `PluginProvider`：
+
+```text
+TaskPlannerProvider
+  -> CapabilityResolver
+       -> PlannerProvider
+       -> TaskProvider
+       -> CheckerProvider
+```
+
+这些外置 Provider 由宿主按现有 Provider 生命周期绑定 `WidgetContext`、启动和停止；`TaskPlannerProvider` 通过能力接口直接调用它们，不把每次调用重新包装成 Dispatcher 事件。
+
+当前核心 API 已支持插件通过 `PluginEntry.providers` 暴露 Provider，但 `CapabilityResolver` 尚未作为正式公共 API 提供。插件可以先采用插件内组合方式实现；宿主级能力注册表完成后，再将同一组接口接入外置 Provider、MCP、Skill 和 Tools，而不改变 `TaskPlannerProvider` 的任务状态机。
+
 ## 调用流程
 
 ```text
