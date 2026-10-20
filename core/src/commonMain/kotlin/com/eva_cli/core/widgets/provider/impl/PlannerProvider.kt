@@ -1,4 +1,4 @@
-package com.eva_cli.core.widgets.provider.impl.task
+package com.eva_cli.core.widgets.provider.impl
 
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.provider.PluginProvider

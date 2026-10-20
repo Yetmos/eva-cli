@@ -1,13 +1,10 @@
-package com.eva_cli.core.widgets.provider.impl.tool
+package com.eva_cli.core.widgets.provider.impl
 
-import com.eva_cli.core.widgets.provider.impl.CapabilityDescriptor
-import com.eva_cli.core.widgets.provider.impl.CapabilityErrorCode
-import com.eva_cli.core.widgets.provider.impl.CapabilityException
-import com.eva_cli.core.widgets.provider.impl.CapabilityKind
 import com.eva_cli.core.widgets.event.Event
 import com.eva_cli.core.widgets.provider.PluginProvider
 import com.eva_cli.core.widgets.provider.Provider
 import com.eva_cli.core.widgets.context.PermissionResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
@@ -133,7 +130,7 @@ abstract class ToolProvider : PluginProvider(), ToolCapability {
             }
         } catch (_: TimeoutCancellationException) {
             ToolResult.failure(CapabilityErrorCode.TIMEOUT, "Tool timed out: ${request.toolId}")
-        } catch (_: kotlinx.coroutines.CancellationException) {
+        } catch (_: CancellationException) {
             ToolResult.failure(CapabilityErrorCode.CANCELLED, "Tool cancelled: ${request.toolId}")
         } catch (failure: CapabilityException) {
             ToolResult.failure(failure.code, failure.message)

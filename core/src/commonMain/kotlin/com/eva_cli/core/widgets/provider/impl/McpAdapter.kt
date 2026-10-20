@@ -1,19 +1,15 @@
-package com.eva_cli.core.widgets.provider.impl.tool
+package com.eva_cli.core.widgets.provider.impl
 
-import com.eva_cli.core.widgets.provider.impl.CapabilityDescriptor
-import com.eva_cli.core.widgets.provider.impl.CapabilityErrorCode
-import com.eva_cli.core.widgets.provider.impl.CapabilityException
-import com.eva_cli.core.widgets.provider.impl.CapabilityKind
 import com.eva_cli.core.widgets.context.NetworkRequest
 import com.eva_cli.core.widgets.context.PluginNetwork
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
 
 /** 最小 JSON-RPC 传输接口；HTTP、SSE 和 stdio 实现由插件或宿主提供。 */
 interface McpTransport {
@@ -49,7 +45,7 @@ class HttpMcpTransport(
                     "Content-Type" to "application/json",
                     "Accept" to "application/json, text/event-stream",
                 ),
-                body = Json.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), request).encodeToByteArray(),
+                body = Json.encodeToString(JsonElement.serializer(), request).encodeToByteArray(),
                 failOnHttpError = true,
                 requestTimeoutMillis = timeoutMillis,
             ),
@@ -77,7 +73,7 @@ class HttpMcpTransport(
                 url = endpoint,
                 method = "POST",
                 headers = headers + ("Content-Type" to "application/json"),
-                body = Json.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), request).encodeToByteArray(),
+                body = Json.encodeToString(JsonElement.serializer(), request).encodeToByteArray(),
                 failOnHttpError = true,
                 requestTimeoutMillis = timeoutMillis,
             ),
